@@ -3,6 +3,7 @@ package main
 import (
 	"blackbox-backend/internal/config"
 	"blackbox-backend/internal/ffmpeg"
+	"blackbox-backend/internal/server"
 	"blackbox-backend/internal/watcher"
 	"context"
 	"flag"
@@ -41,27 +42,22 @@ func run(c context.Context, path string) error {
 
 	ff := ffmpeg.New(cfg.FFmpeg)
 	w := watcher.New(cfg.Watcher)
-	// s := server.New(cfg.Server)
+	svr, err := server.New(cfg.Server)
 
 	g, gctx := errgroup.WithContext(ctx)
-
 	g.Go(func() error {
 		return w.Run(gctx)
 	})
-
 	g.Go(func() error {
 		return ff.Run(gctx)
 	})
-
-	// g.Go(func() error {
-	// return svr.Run()
-	// })
-
-	// g.Go(func() error {
-	// <-gctx.Done()
-	// return  srv.Shutdown(context.Background())
-	// })
-
+	g.Go(func() error {
+		return svr.Run(gctx)
+	})
+	g.Go(func() error {
+		<-gctx.Done()
+		return svr.Shutdown(context.Background())
+	})
 	// g.Go로 실행한 모든 고루틴들이 종료될때까지 g.Wait() 대기
 	if err := g.Wait(); err != nil {
 		cancel()

@@ -188,13 +188,12 @@ func (w *Watcher) Run(ctx context.Context) error {
 	}
 }
 
+// 특정 이름으로 처리하는 방식은 나중에 필요할때 추가
 func (w *Watcher) handleEvent(ev unix.InotifyEvent, name string, rule config.WatcherRule) {
 	if ev.Mask&unix.IN_CLOSE_WRITE != 0 {
 		if strings.EqualFold(filepath.Ext(name), rule.Ext) {
 			sourceFile := filepath.Join(rule.SourceDir, name)
 			targetFile := filepath.Join(rule.TargetDir, name)
-
-			os.Rename(sourceFile)
 
 			log.Printf("CLOSE_WRITE (ext:%s): %s ---> %s", rule.Ext, sourceFile, targetFile)
 		} else {

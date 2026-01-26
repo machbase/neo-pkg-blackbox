@@ -7,9 +7,10 @@ import (
 )
 
 type AppConfig struct {
-	FFmpeg  FFmpegConfig  `yaml:"ffmpeg"`
-	Watcher WatcherConfig `yaml:"watcher"`
-	Server  ServerConfig  `yaml:"server"`
+	FFmpeg   FFmpegConfig   `yaml:"ffmpeg"`
+	Watcher  WatcherConfig  `yaml:"watcher"`
+	Server   ServerConfig   `yaml:"server"`
+	Machbase MachbaseConfig `yaml:"machbase"`
 }
 
 func Load(path string) (*AppConfig, error) {
