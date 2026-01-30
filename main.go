@@ -70,11 +70,6 @@ func run(c context.Context, path string) error {
 		return svr.Run(gctx)
 	})
 
-	g.Go(func() error {
-		<-gctx.Done()
-		return svr.Shutdown(context.Background())
-	})
-
 	if err := g.Wait(); err != nil {
 		log.Printf("shutdown: %v", err)
 	}

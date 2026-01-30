@@ -1,208 +1,302 @@
 package server
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strconv"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-// GetCameras handles GET /api/cameras
+// GetCameras handles GET /api/cameras.
 func (h *Handler) GetCameras(c *gin.Context) {
-	cameras, err := h.db.GetCameras(c.Request.Context())
-	if err != nil {
-		h.writeError(c, err)
+	ctx := c.Request.Context()
+
+	var cameras []string
+
+	metaRows, err := h.machbase.CameraMetadata(ctx)
+	if err == nil && len(metaRows) > 0 {
+		for _, row := range metaRows {
+			if row.Name != "" {
+				cameras = append(cameras, row.Name)
+			}
+		}
+	}
+
+	if len(cameras) == 0 {
+		tags, err := h.machbase.ListTags(ctx)
+		if err != nil {
+			h.sendError(c, http.StatusInternalServerError, "Failed to list cameras")
+			return
+		}
+		for _, tag := range tags {
+			stats, err := h.machbase.BlackboxStatsByTag(ctx, tag)
+			if err == nil && stats != nil {
+				cameras = append(cameras, tag)
+			}
+		}
+	}
+
+	if len(cameras) == 0 {
+		h.sendError(c, http.StatusNotFound, "No cameras available")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"cameras": cameras})
+
+	cameras = uniqueStrings(cameras)
+	sort.Strings(cameras)
+
+	resp := GetCamerasResponse{
+		Cameras: make([]Camera, len(cameras)),
+	}
+	for i, cam := range cameras {
+		resp.Cameras[i] = Camera{ID: cam, Label: cam}
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
-// GetTimeRange handles GET /api/get_time_range
+// GetTimeRange handles GET /api/get_time_range.
 func (h *Handler) GetTimeRange(c *gin.Context) {
-	camera, err := h.requireTag(c, "tagname")
-	if err != nil {
+	var req GetTimeRangeRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Missing required parameter 'tagname'")
 		return
 	}
 
-	result, err := h.db.GetTimeRange(c.Request.Context(), camera)
+	camera, err := sanitizeTag(req.Tagname)
 	if err != nil {
-		h.writeError(c, err)
+		h.sendError(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, result)
+
+	ctx := c.Request.Context()
+	var start, end *string
+
+	stats, err := h.machbase.BlackboxStatsByTag(ctx, camera)
+	if err == nil && stats != nil {
+		minStr := formatTime(stats.MinTime)
+		maxStr := formatTime(stats.MaxTime)
+		start = &minStr
+		end = &maxStr
+	}
+
+	if start == nil || end == nil {
+		bounds, err := h.machbase.BlackboxTimeBounds(ctx, camera)
+		if err == nil && bounds != nil {
+			if start == nil {
+				minStr := formatTime(bounds.MinTime)
+				start = &minStr
+			}
+			if end == nil {
+				maxStr := formatTime(bounds.MaxTime)
+				end = &maxStr
+			}
+		}
+	}
+
+	if start == nil || end == nil {
+		h.sendError(c, http.StatusNotFound, fmt.Sprintf("No timeline entries for camera '%s'", camera))
+		return
+	}
+
+	chunkDuration := 0.0
+	interval, err := h.machbase.BlackboxChunkInterval(ctx, camera)
+	if err == nil && interval > 0 {
+		chunkDuration = interval
+	}
+
+	fps := h.getCameraFPS(c, camera)
+	if chunkDuration == 0 && fps != nil && *fps > 0 {
+		chunkDuration = 1.0 / float64(*fps)
+	}
+
+	if chunkDuration == 0 {
+		chunkDuration = 5.0
+	}
+
+	resp := GetTimeRangeResponse{
+		Camera:               camera,
+		Start:                *start,
+		End:                  *end,
+		ChunkDurationSeconds: chunkDuration,
+		FPS:                  fps,
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
-// GetChunkInfo handles GET /api/get_chunk_info
+// GetChunkInfo handles GET /api/get_chunk_info.
 func (h *Handler) GetChunkInfo(c *gin.Context) {
-	camera, err := h.requireTag(c, "tagname")
+	var req GetChunkInfoRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Missing required parameter 'tagname' or 'time'")
+		return
+	}
+
+	camera, err := sanitizeTag(req.Tagname)
 	if err != nil {
+		h.sendError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	timeParam := strings.TrimSpace(c.Query("time"))
-	if timeParam == "" {
-		h.writeError(c, NewAPIError(http.StatusBadRequest, "missing required parameter: time"))
-		return
-	}
-
-	t, err := ParseTimeToken(timeParam)
+	timestamp, err := parseTimeToken(req.Time)
 	if err != nil {
-		h.writeError(c, NewAPIError(http.StatusBadRequest, err.Error()))
+		h.sendError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	info, err := h.db.GetChunkInfo(c.Request.Context(), camera, t)
+	ctx := c.Request.Context()
+	record, err := h.machbase.ChunkRecordForTime(ctx, camera, timestamp)
 	if err != nil {
-		h.writeError(c, err)
-		return
-	}
-	if info == nil {
-		h.writeError(c, NewAPIError(http.StatusNotFound, fmt.Sprintf("chunk not found: camera=%s time=%s", camera, timeParam)))
+		h.sendError(c, http.StatusInternalServerError, "Failed to fetch chunk info")
 		return
 	}
 
-	c.JSON(http.StatusOK, info)
+	if record == nil {
+		h.sendError(c, http.StatusNotFound, fmt.Sprintf("Chunk not found for camera '%s' at time '%s'", camera, req.Time))
+		return
+	}
+
+	resp := GetChunkInfoResponse{
+		Camera: camera,
+		Time:   formatTime(record.EntryTime),
+		Length: record.Length,
+	}
+
+	if record.Value != 0 {
+		resp.Sign = &record.Value
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
-// GetChunk handles GET /api/v_get_chunk
+// GetChunk handles GET /api/v_get_chunk.
 func (h *Handler) GetChunk(c *gin.Context) {
-	camera, err := h.requireTag(c, "tagname")
-	if err != nil {
+	var req GetChunkRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Missing required parameter 'tagname'")
 		return
 	}
 
-	timeParam := c.DefaultQuery("time", "0")
+	camera, err := sanitizeTag(req.Tagname)
+	if err != nil {
+		h.sendError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	timeToken := req.Time
+	if timeToken == "" {
+		timeToken = "0"
+	}
 
 	var data []byte
-	if timeParam == "0" || strings.EqualFold(timeParam, "init") {
-		data, err = h.readInitFile(camera)
+
+	if timeToken == "0" || strings.ToLower(timeToken) == "init" {
+		path := h.initPath(camera)
+		data, err = os.ReadFile(path)
+		if err != nil {
+			h.sendError(c, http.StatusNotFound, fmt.Sprintf("Segment not found for camera '%s'", camera))
+			return
+		}
 	} else {
-		t, parseErr := ParseTimeToken(timeParam)
-		if parseErr != nil {
-			h.writeError(c, NewAPIError(http.StatusBadRequest, parseErr.Error()))
+		timestamp, err := parseTimeToken(timeToken)
+		if err != nil {
+			h.sendError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		info, dbErr := h.db.GetChunkInfo(c.Request.Context(), camera, t)
-		if dbErr != nil {
-			h.writeError(c, dbErr)
-			return
-		}
-		if info == nil {
-			h.writeError(c, NewAPIError(http.StatusNotFound, fmt.Sprintf("chunk not found: camera=%s time=%s", camera, timeParam)))
+		ctx := c.Request.Context()
+		record, err := h.machbase.ChunkRecordForTime(ctx, camera, timestamp)
+		if err != nil {
+			h.sendError(c, http.StatusInternalServerError, "Failed to fetch chunk info")
 			return
 		}
 
-		data, err = h.readChunkFile(c.Request.Context(), camera, info.Sign)
-	}
+		if record == nil {
+			h.sendError(c, http.StatusNotFound, fmt.Sprintf("Chunk not found for camera '%s' at time '%s'", camera, timeToken))
+			return
+		}
 
-	if err != nil {
-		h.writeError(c, err)
-		return
+		path := h.chunkPath(c, camera, record.Value)
+		data, err = os.ReadFile(path)
+		if err != nil {
+			h.sendError(c, http.StatusNotFound, fmt.Sprintf("Segment not found for camera '%s'", camera))
+			return
+		}
 	}
 
 	c.Data(http.StatusOK, "application/octet-stream", data)
 }
 
-// GetCameraRollup handles GET /api/get_camera_rollup_info
+// GetCameraRollup handles GET /api/get_camera_rollup_info.
 func (h *Handler) GetCameraRollup(c *gin.Context) {
-	camera, err := h.requireTag(c, "tagname")
-	if err != nil {
+	var req GetCameraRollupRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Missing required parameters")
 		return
 	}
 
-	minutes, err := strconv.Atoi(c.DefaultQuery("minutes", "1"))
+	camera, err := sanitizeTag(req.Tagname)
 	if err != nil {
-		h.writeError(c, NewAPIError(http.StatusBadRequest, "minutes must be an integer"))
+		h.sendError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	startStr := strings.TrimSpace(c.Query("start_time"))
-	endStr := strings.TrimSpace(c.Query("end_time"))
-	if startStr == "" || endStr == "" {
-		h.writeError(c, NewAPIError(http.StatusBadRequest, "missing required parameter: start_time or end_time"))
+	minutes := req.Minutes
+	if minutes <= 0 {
+		minutes = 1
+	}
+
+	if req.StartTime < 0 || req.EndTime < 0 {
+		h.sendError(c, http.StatusBadRequest, "Start and end time must be non-negative")
 		return
 	}
 
-	startNS, err := strconv.ParseInt(startStr, 10, 64)
-	if err != nil {
-		h.writeError(c, NewAPIError(http.StatusBadRequest, "start_time and end_time must be integers (UTC nanoseconds)"))
-		return
-	}
-	endNS, err := strconv.ParseInt(endStr, 10, 64)
-	if err != nil {
-		h.writeError(c, NewAPIError(http.StatusBadRequest, "start_time and end_time must be integers (UTC nanoseconds)"))
+	if req.StartTime >= req.EndTime {
+		h.sendError(c, http.StatusBadRequest, "Parameter 'start_time' must be earlier than 'end_time'")
 		return
 	}
 
-	result, err := h.db.GetCameraRollup(c.Request.Context(), camera, minutes, startNS, endNS)
+	ctx := c.Request.Context()
+	rows, err := h.machbase.CameraRollup(ctx, camera, minutes, req.StartTime, req.EndTime)
 	if err != nil {
-		h.writeError(c, err)
+		h.sendError(c, http.StatusInternalServerError, "Failed to fetch rollup data")
 		return
 	}
-	c.JSON(http.StatusOK, result)
-}
 
-// File reading
-
-func (h *Handler) readInitFile(camera string) ([]byte, error) {
-	path := filepath.Join(h.dataDir, camera, fmt.Sprintf("init-stream%d.m4s", videoStreamIndex))
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, NewAPIError(http.StatusNotFound, fmt.Sprintf("init segment not found: camera=%s", camera))
+	rollupRows := make([]RollupRow, len(rows))
+	for i, row := range rows {
+		rollupRows[i] = RollupRow{
+			Time: formatTime(row.Time),
 		}
-		return nil, fmt.Errorf("read init file: %w", err)
-	}
-	return data, nil
-}
-
-func (h *Handler) readChunkFile(ctx context.Context, camera string, chunkValue int64) ([]byte, error) {
-	prefix := h.resolvePrefix(ctx, camera)
-
-	// chunkValue is epoch milliseconds
-	dt := time.UnixMilli(chunkValue).UTC()
-	dateDir := dt.Format("20060102")
-	filename := fmt.Sprintf("%s%d-%d.m4s", prefix, videoStreamIndex, chunkValue)
-
-	// Try with date folder first
-	path := filepath.Join(h.dataDir, camera, dateDir, filename)
-	if data, err := os.ReadFile(path); err == nil {
-		return data, nil
-	}
-
-	// Fallback: without date folder
-	path = filepath.Join(h.dataDir, camera, filename)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, NewAPIError(http.StatusNotFound, fmt.Sprintf("chunk not found: camera=%s", camera))
+		if row.SumLength != 0 {
+			sum := row.SumLength
+			rollupRows[i].SumLength = &sum
 		}
-		return nil, fmt.Errorf("read chunk file: %w", err)
 	}
-	return data, nil
+
+	startDt := utcNanosecondsToTime(req.StartTime)
+	endDt := utcNanosecondsToTime(req.EndTime)
+
+	resp := GetCameraRollupResponse{
+		Camera:      camera,
+		Minutes:     minutes,
+		StartTimeNs: req.StartTime,
+		EndTimeNs:   req.EndTime,
+		Start:       formatTime(startDt),
+		End:         formatTime(endDt),
+		Rows:        rollupRows,
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
-func (h *Handler) resolvePrefix(ctx context.Context, camera string) string {
-	h.mu.RLock()
-	if prefix, ok := h.prefixCache[camera]; ok {
-		h.mu.RUnlock()
-		return prefix
-	}
-	h.mu.RUnlock()
-
-	prefix, _ := h.db.GetCameraPrefix(ctx, camera)
-
-	h.mu.Lock()
-	h.prefixCache[camera] = prefix
-	h.mu.Unlock()
-
-	return prefix
+// utcNanosecondsToTime converts UTC nanoseconds to time.Time.
+func utcNanosecondsToTime(ns int64) time.Time {
+	sec := ns / 1_000_000_000
+	nsec := ns % 1_000_000_000
+	return time.Unix(sec, nsec).Local()
 }

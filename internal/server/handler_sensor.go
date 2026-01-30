@@ -2,73 +2,157 @@ package server
 
 import (
 	"net/http"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-// GetSensors handles GET /api/sensors
+// GetSensors handles GET /api/sensors.
 func (h *Handler) GetSensors(c *gin.Context) {
-	camera, err := h.requireTag(c, "tagname")
-	if err != nil {
+	var req GetSensorsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Missing required parameter 'tagname'")
 		return
 	}
 
-	sensors, err := h.db.GetSensors(c.Request.Context(), camera)
+	camera, err := sanitizeTag(req.Tagname)
 	if err != nil {
-		h.writeError(c, err)
+		h.sendError(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"camera": camera, "sensors": sensors})
+
+	ctx := c.Request.Context()
+	var sensorIDs []string
+
+	rawNames, err := h.machbase.SensorNames(ctx)
+	if err == nil && len(rawNames) > 0 {
+		for _, tag := range rawNames {
+			sensorID := sensorKeyFromTag(camera, tag)
+			if sensorID != "" {
+				sensorIDs = append(sensorIDs, sensorID)
+			}
+		}
+	}
+
+	if len(sensorIDs) == 0 {
+		sensorIDs = append(sensorIDs, defaultSensorNames...)
+	}
+
+	sensorIDs = uniqueStrings(sensorIDs)
+	sortSensorIDs(sensorIDs)
+
+	sensors := make([]Sensor, len(sensorIDs))
+	for i, sensorID := range sensorIDs {
+		label := defaultSensorLabels[sensorID]
+		if label == "" {
+			label = strings.ReplaceAll(sensorID, "_", " ")
+			label = strings.Title(label)
+		}
+		sensors[i] = Sensor{ID: sensorID, Label: label}
+	}
+
+	resp := GetSensorsResponse{
+		Camera:  camera,
+		Sensors: sensors,
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
-// GetSensorData handles GET /api/sensor_data
+// GetSensorData handles GET /api/sensor_data.
 func (h *Handler) GetSensorData(c *gin.Context) {
-	param := strings.TrimSpace(c.Query("sensors"))
-	if param == "" {
-		h.writeError(c, NewAPIError(http.StatusBadRequest, "missing required parameter: sensors"))
+	var req GetSensorDataRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		h.sendError(c, http.StatusBadRequest, "Missing required parameters")
 		return
 	}
 
+	if req.Sensors == "" {
+		h.sendError(c, http.StatusBadRequest, "Missing required parameter 'sensors'")
+		return
+	}
+
+	sensorTokens := strings.Split(req.Sensors, ",")
 	var sensorIDs []string
-	for _, p := range strings.Split(param, ",") {
-		if p = strings.TrimSpace(p); p == "" {
+	for _, token := range sensorTokens {
+		token = strings.TrimSpace(token)
+		if token == "" {
 			continue
 		}
-		id, err := ValidateTag(p)
+		sanitized, err := sanitizeTag(token)
 		if err != nil {
-			h.writeError(c, NewAPIError(http.StatusBadRequest, err.Error()))
+			h.sendError(c, http.StatusBadRequest, err.Error())
 			return
 		}
-		sensorIDs = append(sensorIDs, id)
+		sensorIDs = append(sensorIDs, sanitized)
 	}
+
 	if len(sensorIDs) == 0 {
-		h.writeError(c, NewAPIError(http.StatusBadRequest, "sensors must include at least one sensor id"))
+		h.sendError(c, http.StatusBadRequest, "Parameter 'sensors' must include at least one sensor id")
 		return
 	}
 
-	startStr := strings.TrimSpace(c.Query("start"))
-	endStr := strings.TrimSpace(c.Query("end"))
-	if startStr == "" || endStr == "" {
-		h.writeError(c, NewAPIError(http.StatusBadRequest, "missing required parameter: start or end"))
+	startDt, err := parseTimeToken(req.Start)
+	if err != nil {
+		h.sendError(c, http.StatusBadRequest, "Invalid start time format")
 		return
 	}
 
-	start, err := ParseTimeToken(startStr)
+	endDt, err := parseTimeToken(req.End)
 	if err != nil {
-		h.writeError(c, NewAPIError(http.StatusBadRequest, err.Error()))
-		return
-	}
-	end, err := ParseTimeToken(endStr)
-	if err != nil {
-		h.writeError(c, NewAPIError(http.StatusBadRequest, err.Error()))
+		h.sendError(c, http.StatusBadRequest, "Invalid end time format")
 		return
 	}
 
-	samples, err := h.db.GetSensorData(c.Request.Context(), sensorIDs, start, end)
-	if err != nil {
-		h.writeError(c, err)
+	if startDt.After(endDt) {
+		h.sendError(c, http.StatusBadRequest, "Start time must be earlier than end time")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"sensors": sensorIDs, "samples": samples})
+
+	ctx := c.Request.Context()
+	rows, err := h.machbase.SensorRows(ctx, sensorIDs, startDt, endDt)
+	if err != nil {
+		h.sendError(c, http.StatusInternalServerError, "Failed to fetch sensor data")
+		return
+	}
+
+	grouped := make(map[time.Time]map[string]float64)
+	for _, row := range rows {
+		matchedID := matchSensorID(row.Name, sensorIDs)
+		if matchedID == "" {
+			continue
+		}
+		if row.Time.Before(startDt) || row.Time.After(endDt) {
+			continue
+		}
+		if grouped[row.Time] == nil {
+			grouped[row.Time] = make(map[string]float64)
+		}
+		grouped[row.Time][matchedID] = row.Value
+	}
+
+	var times []time.Time
+	for t := range grouped {
+		times = append(times, t)
+	}
+	sort.Slice(times, func(i, j int) bool {
+		return times[i].Before(times[j])
+	})
+
+	samples := make([]SensorSample, len(times))
+	for i, t := range times {
+		samples[i] = SensorSample{
+			Time:   formatTime(t),
+			Values: grouped[t],
+		}
+	}
+
+	resp := GetSensorDataResponse{
+		Sensors: sensorIDs,
+		Samples: samples,
+	}
+
+	c.JSON(http.StatusOK, resp)
 }

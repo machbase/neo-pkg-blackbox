@@ -14,20 +14,13 @@ watcher:
       ext: .m4s
 
 ffmpeg:
-  binary: "/home/aloha/machbase/blackbox-backend/ffmpeg"
-
-  defaults:
-    input_args:
-    output_args:
-        # - flag: 공통 사용
-          # value: 공통사용
-    # output_name: "manifest.mpd"
+  binary: ./ffmpeg
 
   cameras:
     - id: cam1
-      rtsp_url: rtsp://machbase:machbase@192.168.1.141:554/stream1 
-      output_dir: /data/cam1/in
-      output_name: manifest.md
+      rtsp_url: "rtsp://user:pa ss@10.0.0.11/stream1"   # 공백 포함(비번)
+      output_dir: "/data/cam 1"                          # 공백 포함 경로
+      output_name: "manifest.mpd"
 
       input_args:
         - flag: rtsp_transport
@@ -52,16 +45,19 @@ ffmpeg:
 
       output_args:
         - flag: f
-          value: dash
+          value: "dash"
         - flag: seg_duration
           value: "5"
         - flag: use_template
-          value: "1"
+          value: "0"
         - flag: use_timeline
-          value: "1"
-        # - flag: use_template
-        #   value: "0"
-        # - flag: use_timeline
-        #   value: "0"
+          value: "0"
 
-      extra_args: []
+      # shellQuote 효과를 더 보여주려고 일부러 복잡한 값 넣음(예시)
+      extra_args:
+        - flag: metadata
+          value: "title=O'Reilly demo"        # 작은따옴표 포함
+        - flag: headers
+          value: "User-Agent: My Agent/1.0"   # 공백 포함
+        - flag: loglevel
+          value: "warning"
