@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"blackbox-backend/internal/config"
+	"bytes"
 	"context"
 	"log"
 	"os"
@@ -34,9 +35,9 @@ func (r *FFmpegRunner) Run(ctx context.Context) error {
 	go func() {
 		for ev := range events {
 			if ev.Err != nil {
-				log.Printf("[cam %d:%s] %s error: %v", ev.Index, ev.ID, ev.Stage, ev.Err)
+				log.Printf("[%d:%s] %s error: %v", ev.Index, ev.ID, ev.Stage, ev.Err)
 			} else {
-				log.Printf("[cam %d:%s] %s", ev.Index, ev.ID, ev.Stage)
+				log.Printf("[%d:%s] %s", ev.Index, ev.ID, ev.Stage)
 			}
 		}
 	}()
@@ -59,7 +60,6 @@ func (r *FFmpegRunner) Run(ctx context.Context) error {
 					events <- CamEvent{ID: cam.ID, Index: i, Stage: "exit", Err: err}
 					return
 				}
-
 				events <- CamEvent{ID: cam.ID, Index: i, Stage: "exit", Err: err}
 				return
 			}
@@ -80,6 +80,33 @@ func (r *FFmpegRunner) BuildExecArgs(camera config.CameraJob) []string {
 	args = append(args, flattenExecArgs(camera.MidArgs)...)
 	args = append(args, flattenExecArgs(camera.OutputArgs)...)
 	args = append(args, camera.OutputName) // manifest.mpd
+	return args
+}
+
+func (r *FFmpegRunner) FFprobe(ctx context.Context) error {
+	probeArgs := r.BuildProbeArgs()
+	log.Printf("FFmpeg command:\n%s\n", prettyCommand(r.cfg.Defaults.ProbeBinary, probeArgs))
+
+	var outBuf bytes.Buffer
+	var errBuf bytes.Buffer
+	cmd := exec.CommandContext(ctx, r.cfg.Defaults.ProbeBinary, probeArgs...)
+	// cmd.Dir = cam.OutputDIR
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return nil
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (r *FFmpegRunner) BuildProbeArgs() []string {
+	args := []string{}
+	args = append(args, flattenExecArgs(r.cfg.Defaults.ProbeArgs)...)
 	return args
 }
 

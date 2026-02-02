@@ -15,6 +15,9 @@ type FFmpegDefaults struct {
 	InputArgs  []ArgKV `yaml:"input_args"`
 	OutputArgs []ArgKV `yaml:"output_args"`
 	OutputName string  `yaml:"output_name"`
+
+	ProbeBinary string  `yaml:"probe_binary"`
+	ProbeArgs   []ArgKV `yaml:"probe_args"`
 }
 
 type CameraJob struct {

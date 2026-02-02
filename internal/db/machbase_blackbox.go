@@ -2,55 +2,11 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
 )
-
-// Row types for JSON decoding
-
-type metaRow struct {
-	Name   string `json:"NAME"`
-	Prefix string `json:"PREFIX"`
-	FPS    *int   `json:"FPS"`
-}
-
-type metaRow2 struct {
-	Prefix string `json:"PREFIX"`
-	FPS    *int   `json:"FPS"`
-}
-
-type statsRow struct {
-	Name    string `json:"NAME"`
-	MinTime int64  `json:"MIN_TIME"`
-	MaxTime int64  `json:"MAX_TIME"`
-}
-
-type timeBoundsRow struct {
-	MinTime int64 `json:"MIN_TIME"`
-	MaxTime int64 `json:"MAX_TIME"`
-}
-
-type timeRow struct {
-	Time int64 `json:"TIME"`
-}
-
-type nameRow struct {
-	Name string `json:"NAME"`
-}
-
-type chunkRow struct {
-	Time   int64 `json:"TIME"`
-	Length int64 `json:"LENGTH"`
-	Value  int64 `json:"VALUE"`
-}
-
-type rollupRowDB struct {
-	Time        int64   `json:"TIME"`
-	TotalLength float64 `json:"TOTAL_LENGTH"`
-}
-
-// Result types
 
 // CameraMetadataRow represents a camera metadata row.
 type CameraMetadataRow struct {
@@ -59,24 +15,10 @@ type CameraMetadataRow struct {
 	FPS    *int
 }
 
-// BlackboxStats represents blackbox statistics.
-type BlackboxStats struct {
-	Name    string
-	MinTime time.Time
-	MaxTime time.Time
-}
-
-// ChunkRecord represents a chunk record.
-type ChunkRecord struct {
-	Value     int64
-	EntryTime time.Time
-	Length    int64
-}
-
-// RollupRow represents a rollup row.
-type RollupRow struct {
-	Time      time.Time
-	SumLength float64
+type metaRow struct {
+	Name   string `json:"NAME"`
+	Prefix string `json:"PREFIX"`
+	FPS    *int   `json:"FPS"`
 }
 
 // Metadata fetches metadata for a given tag.
@@ -85,27 +27,85 @@ func (m *Machbase) Metadata(ctx context.Context, tag string) (*CameraMetadataRow
 
 	// Try first query
 	sql := fmt.Sprintf("select name, prefix, fps from _blackbox3_meta where name = '%s'", safeTag)
-	rows, err := QueryRows[metaRow](ctx, m, sql)
-	if err == nil && len(rows) > 0 {
-		return &CameraMetadataRow{
-			Name:   rows[0].Name,
-			Prefix: rows[0].Prefix,
-			FPS:    rows[0].FPS,
-		}, nil
+	resp, err := m.Query(ctx, sql)
+	if err == nil && resp.Data.Rows != nil {
+		var rows []metaRow
+		if json.Unmarshal(resp.Data.Rows, &rows) == nil && len(rows) > 0 {
+			return &CameraMetadataRow{
+				Name:   rows[0].Name,
+				Prefix: rows[0].Prefix,
+				FPS:    rows[0].FPS,
+			}, nil
+		}
 	}
 
 	// Try second query
+	type metaRow2 struct {
+		Prefix string `json:"PREFIX"`
+		FPS    *int   `json:"FPS"`
+	}
 	sql = fmt.Sprintf("select prefix, fps from blackbox3 metadata where name = '%s'", safeTag)
-	rows2, err := QueryRows[metaRow2](ctx, m, sql)
-	if err == nil && len(rows2) > 0 {
-		return &CameraMetadataRow{
-			Name:   tag,
-			Prefix: rows2[0].Prefix,
-			FPS:    rows2[0].FPS,
-		}, nil
+	resp, err = m.Query(ctx, sql)
+	if err == nil && resp.Data.Rows != nil {
+		var rows []metaRow2
+		if json.Unmarshal(resp.Data.Rows, &rows) == nil && len(rows) > 0 {
+			return &CameraMetadataRow{
+				Name:   tag,
+				Prefix: rows[0].Prefix,
+				FPS:    rows[0].FPS,
+			}, nil
+		}
 	}
 
 	return nil, nil
+}
+
+// CameraMetadata fetches all camera metadata.
+func (m *Machbase) CameraMetadata(ctx context.Context) ([]CameraMetadataRow, error) {
+	// Try first query
+	sql := "select name, prefix, fps from _blackbox3_meta"
+	resp, err := m.Query(ctx, sql)
+	if err == nil && resp.Data.Rows != nil {
+		var rows []metaRow
+		if json.Unmarshal(resp.Data.Rows, &rows) == nil && len(rows) > 0 {
+			results := make([]CameraMetadataRow, len(rows))
+			for i, r := range rows {
+				results[i] = CameraMetadataRow{
+					Name:   r.Name,
+					Prefix: r.Prefix,
+					FPS:    r.FPS,
+				}
+			}
+			return results, nil
+		}
+	}
+
+	// Try second query
+	sql = "select name, prefix, fps from blackbox3 metadata"
+	resp, err = m.Query(ctx, sql)
+	if err == nil && resp.Data.Rows != nil {
+		var rows []metaRow
+		if json.Unmarshal(resp.Data.Rows, &rows) == nil && len(rows) > 0 {
+			results := make([]CameraMetadataRow, len(rows))
+			for i, r := range rows {
+				results[i] = CameraMetadataRow{
+					Name:   r.Name,
+					Prefix: r.Prefix,
+					FPS:    r.FPS,
+				}
+			}
+			return results, nil
+		}
+	}
+
+	return nil, nil
+}
+
+// BlackboxStats represents blackbox statistics.
+type BlackboxStats struct {
+	Name    string
+	MinTime time.Time
+	MaxTime time.Time
 }
 
 // BlackboxStatsByTag fetches blackbox statistics for a tag.
@@ -116,8 +116,17 @@ func (m *Machbase) BlackboxStatsByTag(ctx context.Context, tag string) (*Blackbo
 		safeTag,
 	)
 
-	rows, err := QueryRows[statsRow](ctx, m, sql, WithTimeformat("ns"))
+	resp, err := m.Query(ctx, sql, WithTimeformat("ns"))
 	if err != nil {
+		return nil, err
+	}
+
+	var rows []struct {
+		Name    string `json:"NAME"`
+		MinTime int64  `json:"MIN_TIME"`
+		MaxTime int64  `json:"MAX_TIME"`
+	}
+	if err := json.Unmarshal(resp.Data.Rows, &rows); err != nil {
 		return nil, err
 	}
 	if len(rows) == 0 {
@@ -140,8 +149,16 @@ func (m *Machbase) BlackboxTimeBounds(ctx context.Context, tag string) (*Blackbo
 		safeTag,
 	)
 
-	rows, err := QueryRows[timeBoundsRow](ctx, m, sql, WithTimeformat("ns"))
+	resp, err := m.Query(ctx, sql, WithTimeformat("ns"))
 	if err != nil {
+		return nil, err
+	}
+
+	var rows []struct {
+		MinTime int64 `json:"MIN_TIME"`
+		MaxTime int64 `json:"MAX_TIME"`
+	}
+	if err := json.Unmarshal(resp.Data.Rows, &rows); err != nil {
 		return nil, err
 	}
 	if len(rows) == 0 {
@@ -168,8 +185,15 @@ func (m *Machbase) BlackboxChunkInterval(ctx context.Context, tag string) (float
 		safeTag,
 	)
 
-	rows, err := QueryRows[timeRow](ctx, m, sql, WithTimeformat("ns"))
+	resp, err := m.Query(ctx, sql, WithTimeformat("ns"))
 	if err != nil {
+		return 0, err
+	}
+
+	var rows []struct {
+		Time int64 `json:"TIME"`
+	}
+	if err := json.Unmarshal(resp.Data.Rows, &rows); err != nil {
 		return 0, err
 	}
 	if len(rows) < 2 {
@@ -186,46 +210,18 @@ func (m *Machbase) BlackboxChunkInterval(ctx context.Context, tag string) (float
 	return delta, nil
 }
 
-// CameraMetadata fetches all camera metadata.
-func (m *Machbase) CameraMetadata(ctx context.Context) ([]CameraMetadataRow, error) {
-	// Try first query
-	sql := "select name, prefix, fps from _blackbox3_meta"
-	rows, err := QueryRows[metaRow](ctx, m, sql)
-	if err == nil && len(rows) > 0 {
-		results := make([]CameraMetadataRow, len(rows))
-		for i, r := range rows {
-			results[i] = CameraMetadataRow{
-				Name:   r.Name,
-				Prefix: r.Prefix,
-				FPS:    r.FPS,
-			}
-		}
-		return results, nil
-	}
-
-	// Try second query
-	sql = "select name, prefix, fps from blackbox3 metadata"
-	rows, err = QueryRows[metaRow](ctx, m, sql)
-	if err == nil && len(rows) > 0 {
-		results := make([]CameraMetadataRow, len(rows))
-		for i, r := range rows {
-			results[i] = CameraMetadataRow{
-				Name:   r.Name,
-				Prefix: r.Prefix,
-				FPS:    r.FPS,
-			}
-		}
-		return results, nil
-	}
-
-	return nil, nil
-}
-
 // ListTags fetches all distinct tags from blackbox3.
 func (m *Machbase) ListTags(ctx context.Context) ([]string, error) {
 	sql := "select distinct name from blackbox3"
-	rows, err := QueryRows[nameRow](ctx, m, sql)
+	resp, err := m.Query(ctx, sql)
 	if err != nil {
+		return nil, err
+	}
+
+	var rows []struct {
+		Name string `json:"NAME"`
+	}
+	if err := json.Unmarshal(resp.Data.Rows, &rows); err != nil {
 		return nil, err
 	}
 
@@ -234,6 +230,13 @@ func (m *Machbase) ListTags(ctx context.Context) ([]string, error) {
 		tags[i] = r.Name
 	}
 	return tags, nil
+}
+
+// ChunkRecord represents a chunk record.
+type ChunkRecord struct {
+	Value     int64
+	EntryTime time.Time
+	Length    int64
 }
 
 // ChunkRecordForTime fetches chunk record for a specific time.
@@ -250,8 +253,17 @@ func (m *Machbase) ChunkRecordForTime(ctx context.Context, tag string, ts time.T
 
 	log.Printf("[CHUNK_QUERY] camera=%s, start_ns=%d, end_ns=%d", tag, upperNs, endNs)
 
-	rows, err := QueryRows[chunkRow](ctx, m, sql, WithTimeformat("ns"))
+	resp, err := m.Query(ctx, sql, WithTimeformat("ns"))
 	if err != nil {
+		return nil, err
+	}
+
+	var rows []struct {
+		Time   int64 `json:"TIME"`
+		Length int64 `json:"LENGTH"`
+		Value  int64 `json:"VALUE"`
+	}
+	if err := json.Unmarshal(resp.Data.Rows, &rows); err != nil {
 		return nil, err
 	}
 	if len(rows) == 0 {
@@ -266,6 +278,12 @@ func (m *Machbase) ChunkRecordForTime(ctx context.Context, tag string, ts time.T
 	}, nil
 }
 
+// RollupRow represents a rollup row.
+type RollupRow struct {
+	Time      time.Time
+	SumLength float64
+}
+
 // CameraRollup fetches rollup data for a camera.
 func (m *Machbase) CameraRollup(ctx context.Context, camera string, minutes int, startNs, endNs int64) ([]RollupRow, error) {
 	safeTag := escapeSQLLiteral(camera)
@@ -278,8 +296,16 @@ func (m *Machbase) CameraRollup(ctx context.Context, camera string, minutes int,
 	log.Printf("Machbase SQL (rollup): %s | minutes=%d | camera=%s | start_ns=%d | end_ns=%d",
 		sql, minutes, camera, startNs, endNs)
 
-	rows, err := QueryRows[rollupRowDB](ctx, m, sql, WithTimeformat("ns"))
+	resp, err := m.Query(ctx, sql, WithTimeformat("ns"))
 	if err != nil {
+		return nil, err
+	}
+
+	var rows []struct {
+		Time        int64   `json:"TIME"`
+		TotalLength float64 `json:"TOTAL_LENGTH"`
+	}
+	if err := json.Unmarshal(resp.Data.Rows, &rows); err != nil {
 		return nil, err
 	}
 

@@ -23,6 +23,10 @@ type Server struct {
 	handler *Handler
 }
 
+func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	s.engine.ServeHTTP(w, req)
+}
+
 // New creates a new Server.
 func New(cfg config.ServerConfig, machbase *db.Machbase) (*Server, error) {
 	cfg.ApplyDefaults()
@@ -71,8 +75,26 @@ func (s *Server) routes() {
 	api.GET("/sensors", s.handler.GetSensors)
 	api.GET("/sensor_data", s.handler.GetSensorData)
 
-	// Static files
-	s.engine.StaticFS("/", http.Dir(s.cfg.BaseDir))
+	// Camera Management
+	api.POST("/camera", s.handler.CreateCamera)
+	api.GET("/camera/:id", s.handler.GetCamera)
+	api.POST("/camera/:id", s.handler.UpdateCamera)
+	api.DELETE("/camera/:id", s.handler.DeleteCamera)
+	api.POST("/camera/test", s.handler.TestCameraConnection)
+
+	// Camera Control
+	api.POST("/camera/:id/enable", s.handler.EnableCamera)
+	api.POST("/camera/:id/disable", s.handler.DisableCamera)
+
+	// Camera Status Monitoring
+	api.GET("/camera/:id/status", s.handler.GetCameraStatus)
+	api.GET("/cameras/health", s.handler.GetCamerasHealth)
+
+	// Static files - use NoRoute to avoid conflict with API routes
+	fileServer := http.FileServer(http.Dir(s.cfg.BaseDir))
+	s.engine.NoRoute(func(c *gin.Context) {
+		fileServer.ServeHTTP(c.Writer, c.Request)
+	})
 }
 
 // Run starts the server and blocks until ctx is cancelled.
@@ -111,7 +133,7 @@ func cors() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, X-Machbase-Api-Token, Authorization")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		c.Header("Access-Control-Max-Age", "86400")
 
 		if c.Request.Method == http.MethodOptions {

@@ -2,37 +2,24 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 )
 
-// Row types for JSON decoding
-
-type sensorNameRow struct {
-	Name string `json:"NAME"`
-}
-
-type sensorDataRow struct {
-	Name  string  `json:"NAME"`
-	Time  int64   `json:"TIME"`
-	Value float64 `json:"VALUE"`
-}
-
-// Result types
-
-// SensorRow represents a sensor data row.
-type SensorRow struct {
-	Name  string
-	Time  time.Time
-	Value float64
-}
-
 // SensorNames fetches sensor names.
 func (m *Machbase) SensorNames(ctx context.Context) ([]string, error) {
 	sql := "select name from _sensor3_meta order by name"
-	rows, err := QueryRows[sensorNameRow](ctx, m, sql)
+	resp, err := m.Query(ctx, sql)
 	if err != nil {
+		return nil, err
+	}
+
+	var rows []struct {
+		Name string `json:"NAME"`
+	}
+	if err := json.Unmarshal(resp.Data.Rows, &rows); err != nil {
 		return nil, err
 	}
 
@@ -41,6 +28,13 @@ func (m *Machbase) SensorNames(ctx context.Context) ([]string, error) {
 		names[i] = r.Name
 	}
 	return names, nil
+}
+
+// SensorRow represents a sensor data row.
+type SensorRow struct {
+	Name  string
+	Time  time.Time
+	Value float64
 }
 
 // SensorRows fetches sensor data rows.
@@ -62,8 +56,17 @@ func (m *Machbase) SensorRows(ctx context.Context, sensorIDs []string, start, en
 		strings.Join(placeholders, ", "), startNs, endNs,
 	)
 
-	rows, err := QueryRows[sensorDataRow](ctx, m, sql, WithTimeformat("ns"))
+	resp, err := m.Query(ctx, sql, WithTimeformat("ns"))
 	if err != nil {
+		return nil, err
+	}
+
+	var rows []struct {
+		Name  string  `json:"NAME"`
+		Time  int64   `json:"TIME"`
+		Value float64 `json:"VALUE"`
+	}
+	if err := json.Unmarshal(resp.Data.Rows, &rows); err != nil {
 		return nil, err
 	}
 

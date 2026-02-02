@@ -1,10 +1,10 @@
 server:
-  addr:
+  addr: 127.0.0.1:8000
   
 
 machbase:
   scheme: http
-  host: 127.0.0.1
+  host: 192.168.1.141
   port: 5654
 
 watcher:
@@ -12,6 +12,7 @@ watcher:
     - source_dir: /data/cam1/in
       target_dir: /data/cam1/out
       ext: .m4s
+      # prefix: 추가?
 
 ffmpeg:
   binary: "/home/aloha/machbase/blackbox-backend/ffmpeg"
@@ -22,6 +23,20 @@ ffmpeg:
         # - flag: 공통 사용
           # value: 공통사용
     # output_name: "manifest.mpd"
+
+    probe_binary: "/home/aloha/machbase/blackbox-backend/ffprobe"
+    probe_args:
+      - flag: v
+        vlaue: "error"
+      - flag: select_streams
+        vlaue: "v:0"
+      - flag: show_entries
+        vlaue: "packet=pts_time,duration_time"
+      - flag: of 
+        vlaue: "csv=p=0"
+      - flag: v
+        vlaue: "error"
+    # probe_input: "concat"
 
   cameras:
     - id: cam1
@@ -56,12 +71,8 @@ ffmpeg:
         - flag: seg_duration
           value: "5"
         - flag: use_template
-          value: "1"
+          value: "0"
         - flag: use_timeline
-          value: "1"
-        # - flag: use_template
-        #   value: "0"
-        # - flag: use_timeline
-        #   value: "0"
+          value: "0"
 
       extra_args: []

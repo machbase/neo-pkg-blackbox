@@ -46,14 +46,14 @@ func (m *Machbase) Start() {}
 
 const maxResponseBytes int64 = 8 << 20 // 8 MiB
 
-// queryResponse is the response from Machbase query API.
-type queryResponse[T any] struct {
+// QueryResponse is the response from Machbase query API.
+type QueryResponse struct {
 	Success bool   `json:"success"`
 	Reason  string `json:"reason"`
 	Data    struct {
-		Columns []string `json:"columns"`
-		Types   []string `json:"types"`
-		Rows    []T      `json:"rows"`
+		Columns []string        `json:"columns"`
+		Types   []string        `json:"types"`
+		Rows    json.RawMessage `json:"rows"`
 	} `json:"data"`
 }
 
@@ -71,8 +71,8 @@ func WithTimeformat(tf string) QueryOption {
 	}
 }
 
-// QueryRows executes a query and returns rows as the specified type.
-func QueryRows[T any](ctx context.Context, m *Machbase, sql string, opts ...QueryOption) ([]T, error) {
+// Query executes a query and returns the response.
+func (m *Machbase) Query(ctx context.Context, sql string, opts ...QueryOption) (*QueryResponse, error) {
 	cfg := &queryConfig{}
 	for _, opt := range opts {
 		opt(cfg)
@@ -82,6 +82,7 @@ func QueryRows[T any](ctx context.Context, m *Machbase, sql string, opts ...Quer
 
 	q := u.Query()
 	q.Set("q", sql)
+	q.Set("rowsArray", "true")
 	if cfg.timeformat != "" {
 		q.Set("timeformat", cfg.timeformat)
 	}
@@ -114,7 +115,7 @@ func QueryRows[T any](ctx context.Context, m *Machbase, sql string, opts ...Quer
 		return nil, fmt.Errorf("response too large: limit %d bytes", maxResponseBytes)
 	}
 
-	var out queryResponse[T]
+	var out QueryResponse
 	if err := json.Unmarshal(body, &out); err != nil {
 		return nil, fmt.Errorf("unmarshal: %w", err)
 	}
@@ -122,7 +123,7 @@ func QueryRows[T any](ctx context.Context, m *Machbase, sql string, opts ...Quer
 		return nil, fmt.Errorf("query failed: %s", out.Reason)
 	}
 
-	return out.Data.Rows, nil
+	return &out, nil
 }
 
 // writeRequest is the request for Machbase write API.

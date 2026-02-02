@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -227,6 +228,22 @@ func (w *Watcher) handleEvent(ev unix.InotifyEvent, name string, rule config.Wat
 			sourceFile := filepath.Join(rule.SourceDir, name)
 			targetFile := filepath.Join(rule.TargetDir, name)
 
+			var ok bool
+			var err error
+			switch {
+			case strings.HasPrefix(name, "chunk-stream"):
+				ok, err = checkFileMinSize(sourceFile, 1000)
+			case strings.HasPrefix(name, "init-stream"):
+				ok, err = checkFileMinSize(sourceFile, 100)
+			default:
+				return fmt.Errorf("invalid name %q", name)
+			}
+
+			// ok 는 왜?
+			if !ok || err != nil {
+				return fmt.Errorf("failed to check file %q: %v", name, err)
+			}
+
 			log.Printf("CLOSE_WRITE (ext:%s): %s ---> %s", rule.Ext, sourceFile, targetFile)
 		} else {
 			log.Println("CLOSE_WRITE : ", name)
@@ -238,4 +255,27 @@ func (w *Watcher) handleEvent(ev unix.InotifyEvent, name string, rule config.Wat
 	}
 
 	return nil
+}
+
+func checkFileMinSize(path string, minSize int64) (bool, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, fmt.Errorf("%q is not exist", path)
+		}
+
+		return false, err
+	}
+
+	if info.IsDir() {
+		// log
+		return false, fmt.Errorf("%q is directory", path)
+	}
+
+	if info.Size() < minSize {
+		// log
+		return false, fmt.Errorf("%q size(%d) is too small (<%d)", path, info.Size(), minSize)
+	}
+
+	return true, nil
 }
