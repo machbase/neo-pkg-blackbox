@@ -43,18 +43,18 @@ func run(c context.Context, path string) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	machbase, err := db.NewMachbase(cfg.Machbase)
+	neo, err := db.NewMachbase(cfg.Machbase)
 	if err != nil {
 		return fmt.Errorf("create machbase client: %w", err)
 	}
 
-	svr, err := server.New(cfg.Server, machbase)
+	svr, err := server.New(cfg.Server, neo)
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
 	}
 
 	ff := ffmpeg.New(cfg.FFmpeg)
-	w := watcher.New(cfg.Watcher)
+	w := watcher.New(cfg.Watcher, neo, ff)
 
 	g, gctx := errgroup.WithContext(ctx)
 

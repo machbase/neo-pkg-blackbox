@@ -3,14 +3,14 @@ server:
   
 
 machbase:
-  scheme: http
   host: 192.168.1.141
   port: 5654
 
 watcher:
   rules:
-    - source_dir: /data/cam1/in
-      target_dir: /data/cam1/out
+    - camera_id: camera1
+      source_dir: /data/camera1/in
+      target_dir: /data/camera1/out
       ext: .m4s
       # prefix: 추가?
 
@@ -21,8 +21,7 @@ ffmpeg:
     input_args:
     output_args:
         # - flag: 공통 사용
-          # value: 공통사용
-    # output_name: "manifest.mpd"
+        #   value: 공통사용
 
     probe_binary: "/home/aloha/machbase/blackbox-backend/ffprobe"
     probe_args:
@@ -39,11 +38,11 @@ ffmpeg:
     # probe_input: "concat"
 
   cameras:
-    - id: cam1
-      rtsp_url: rtsp://machbase:machbase@192.168.1.141:554/stream1 
-      output_dir: /data/cam1/in
+    - id: camera1
+      rtsp_url: rtsp://210.99.70.120:1935/live/cctv002.stream
+      # rtsp_url: rtsp://machbase:machbase@192.168.1.141:554/stream1 
+      output_dir: /data/camera1/in
       output_name: manifest.md
-
       input_args:
         - flag: rtsp_transport
           value: "tcp"
@@ -59,12 +58,10 @@ ffmpeg:
           value: "10000000"
         - flag: use_wallclock_as_timestamps
           value: "1"
-
       mid_args:
-        - flag: copyts
+        # - flag: copyts
         - flag: c:v
           value: "copy"
-
       output_args:
         - flag: f
           value: dash
@@ -74,5 +71,4 @@ ffmpeg:
           value: "0"
         - flag: use_timeline
           value: "0"
-
       extra_args: []

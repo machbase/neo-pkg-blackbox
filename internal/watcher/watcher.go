@@ -2,6 +2,8 @@ package watcher
 
 import (
 	"blackbox-backend/internal/config"
+	"blackbox-backend/internal/db"
+	"blackbox-backend/internal/ffmpeg"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -11,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -21,14 +24,19 @@ const abnormal = unix.POLLHUP | unix.POLLERR | unix.POLLNVAL
 type Watcher struct {
 	cfg config.WatcherConfig
 
+	neo     *db.Machbase
+	ffRuner *ffmpeg.FFmpegRunner
+
 	// 자주 사용하는 필드들
 	RamDisk string
 	DataDir string
 }
 
-func New(cfg config.WatcherConfig) *Watcher {
+func New(cfg config.WatcherConfig, neo *db.Machbase, ffRunner *ffmpeg.FFmpegRunner) *Watcher {
 	return &Watcher{
-		cfg: cfg,
+		cfg:     cfg,
+		neo:     neo,
+		ffRuner: ffRunner,
 	}
 }
 
@@ -239,9 +247,21 @@ func (w *Watcher) handleEvent(ev unix.InotifyEvent, name string, rule config.Wat
 				return fmt.Errorf("invalid name %q", name)
 			}
 
+			observedEpochMs := time.Now().UTC().UnixMilli()
+
 			// ok 는 왜?
 			if !ok || err != nil {
 				return fmt.Errorf("failed to check file %q: %v", name, err)
+			}
+
+			segment, err := w.ffRuner.FFprobeTiming(context.Background(), "", "")
+			if err != nil {
+				return err
+			}
+
+			err = w.neo.InsertChunk(context.Background(), rule.CameraID, int64(segment.StartPTS), int64(segment.Length), observedEpochMs)
+			if err != nil {
+				return err
 			}
 
 			log.Printf("CLOSE_WRITE (ext:%s): %s ---> %s", rule.Ext, sourceFile, targetFile)
@@ -266,16 +286,13 @@ func checkFileMinSize(path string, minSize int64) (bool, error) {
 
 		return false, err
 	}
-
 	if info.IsDir() {
 		// log
 		return false, fmt.Errorf("%q is directory", path)
 	}
-
 	if info.Size() < minSize {
 		// log
 		return false, fmt.Errorf("%q size(%d) is too small (<%d)", path, info.Size(), minSize)
 	}
-
 	return true, nil
 }

@@ -12,9 +12,9 @@ type CameraRequest struct {
 	Desc  string `json:"desc"`
 
 	RtspURL   string `json:"rtsp_url"`
-	WebRTCUrl string `json:"webrtc_url"`
+	WebRTCURL string `json:"webrtc_url"`
 
-	FFmpegOption string `json:"ffmpeg_option"` // 프론트에 전달 필요
+	FFmpegOptions []string `json:"ffmpeg_options"` // 프론트에 전달 필요
 }
 
 // CreateCamera handles POST /api/camera.

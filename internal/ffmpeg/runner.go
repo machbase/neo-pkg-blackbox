@@ -2,11 +2,14 @@ package ffmpeg
 
 import (
 	"blackbox-backend/internal/config"
+	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -47,7 +50,7 @@ func (r *FFmpegRunner) Run(ctx context.Context) error {
 		go func(i int, cam config.CameraJob) {
 			defer wg.Done()
 
-			execArgs := r.BuildExecArgs(cam)
+			execArgs := r.buildExecArgs(cam)
 			log.Printf("FFmpeg command:\n%s\n", prettyCommand(r.cfg.Binary, execArgs))
 
 			cmd := exec.CommandContext(ctx, r.cfg.Binary, execArgs...)
@@ -73,7 +76,7 @@ func (r *FFmpegRunner) Run(ctx context.Context) error {
 	return nil
 }
 
-func (r *FFmpegRunner) BuildExecArgs(camera config.CameraJob) []string {
+func (r *FFmpegRunner) buildExecArgs(camera config.CameraJob) []string {
 	args := []string{}
 	args = append(args, flattenExecArgs(camera.InputArgs)...)
 	args = append(args, "-i", camera.RtspURL)
@@ -83,30 +86,93 @@ func (r *FFmpegRunner) BuildExecArgs(camera config.CameraJob) []string {
 	return args
 }
 
-func (r *FFmpegRunner) FFprobe(ctx context.Context) error {
-	probeArgs := r.BuildProbeArgs()
-	log.Printf("FFmpeg command:\n%s\n", prettyCommand(r.cfg.Defaults.ProbeBinary, probeArgs))
-
-	var outBuf bytes.Buffer
-	var errBuf bytes.Buffer
-	cmd := exec.CommandContext(ctx, r.cfg.Defaults.ProbeBinary, probeArgs...)
-	// cmd.Dir = cam.OutputDIR
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &errBuf
-
-	if err := cmd.Run(); err != nil {
-		if ctx.Err() != nil {
-			return nil
-		}
-		return err
-	}
-
-	return nil
+type SegmentTiming struct {
+	StartPTS float64
+	LastPTS  float64
+	LastDur  float64
+	Length   float64
 }
 
-func (r *FFmpegRunner) BuildProbeArgs() []string {
+func (r *FFmpegRunner) FFprobeTiming(ctx context.Context, initFile string, chunkFile string) (SegmentTiming, error) {
+	probeArgs := r.buildProbeArgs(initFile, chunkFile)
+	log.Printf("ffprobe command: %s\n", prettyCommand(r.cfg.Defaults.ProbeBinary, probeArgs))
+
+	var errBuf bytes.Buffer
+	cmd := exec.CommandContext(ctx, r.cfg.Defaults.ProbeBinary, probeArgs...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return SegmentTiming{}, err
+	}
+	cmd.Stderr = &errBuf
+
+	if err := cmd.Start(); err != nil {
+		return SegmentTiming{}, err
+	}
+
+	sc := bufio.NewScanner(stdout)
+	var firstLine, lastLine string
+	for sc.Scan() {
+		line := sc.Text()
+		if firstLine == "" {
+			firstLine = line
+		}
+		lastLine = line
+	}
+	scErr := sc.Err()
+
+	waitErr := cmd.Wait()
+	if scErr != nil {
+		return SegmentTiming{}, scErr
+	}
+	if waitErr != nil {
+		return SegmentTiming{}, fmt.Errorf("ffprobe failed: %v, stderr=%s", waitErr, errBuf.String())
+	}
+	if firstLine == "" || lastLine == "" {
+		return SegmentTiming{}, fmt.Errorf("ffprobe produced no packet lines; stderr=%s", errBuf.String())
+	}
+
+	start, err := parseCSVFloat(firstLine, 0)
+	lastPts, err := parseCSVFloat(lastLine, 0)
+	lastDur, err := parseCSVFloat(lastLine, 1)
+	length := (lastPts + lastDur) - start
+
+	return SegmentTiming{
+		StartPTS: start,
+		LastPTS:  lastPts,
+		LastDur:  lastDur,
+		Length:   length,
+	}, nil
+}
+
+func parseCSVFloat(line string, field int) (float64, error) {
+	a, b, ok := strings.Cut(line, ",")
+	if !ok {
+		return 0, fmt.Errorf("bad csv line: %q", line)
+	}
+
+	var s string
+	if field == 0 {
+		s = a
+	} else {
+		s = b
+	}
+
+	if s == "N/A" || s == "" {
+		return 0, fmt.Errorf("missing value in line: %q", line)
+	}
+
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse float %q: %v", s, err)
+	}
+
+	return v, nil
+}
+
+func (r *FFmpegRunner) buildProbeArgs(initFile string, chunkFile string) []string {
 	args := []string{}
 	args = append(args, flattenExecArgs(r.cfg.Defaults.ProbeArgs)...)
+	args = append(args, fmt.Sprintf("concat:%s|%s", initFile, chunkFile))
 	return args
 }
 
@@ -116,9 +182,12 @@ func flattenExecArgs(kvs []config.ArgKV) []string {
 		if arg.Flag == "" {
 			continue
 		}
+		flag := arg.Flag
 		if !strings.HasPrefix(arg.Flag, "-") {
-			out = append(out, "-"+arg.Flag)
+			flag = "-" + flag
 		}
+		out = append(out, flag)
+
 		if arg.Value != "" {
 			out = append(out, arg.Value)
 		}
