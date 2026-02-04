@@ -93,7 +93,7 @@ type SegmentTiming struct {
 	Length   float64
 }
 
-func (r *FFmpegRunner) FFprobeTiming(ctx context.Context, initFile string, chunkFile string) (SegmentTiming, error) {
+func (r *FFmpegRunner) ProbeConcatPacketTiming(ctx context.Context, initFile string, chunkFile string) (SegmentTiming, error) {
 	probeArgs := r.buildProbeArgs(initFile, chunkFile)
 	log.Printf("ffprobe command: %s\n", prettyCommand(r.cfg.Defaults.ProbeBinary, probeArgs))
 

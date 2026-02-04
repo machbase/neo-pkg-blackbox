@@ -3,7 +3,7 @@ server:
   
 
 machbase:
-  host: 192.168.1.141
+  host: 127.0.0.1
   port: 5654
 
 watcher:
@@ -26,15 +26,13 @@ ffmpeg:
     probe_binary: "/home/aloha/machbase/blackbox-backend/ffprobe"
     probe_args:
       - flag: v
-        vlaue: "error"
+        value: "error"
       - flag: select_streams
-        vlaue: "v:0"
+        value: "v:0"
       - flag: show_entries
-        vlaue: "packet=pts_time,duration_time"
+        value: "packet=pts_time,duration_time"
       - flag: of 
-        vlaue: "csv=p=0"
-      - flag: v
-        vlaue: "error"
+        value: "csv=p=0"
     # probe_input: "concat"
 
   cameras:

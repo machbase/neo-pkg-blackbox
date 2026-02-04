@@ -1,27 +1,46 @@
 server:
-  addr:
+  addr: 127.0.0.1:8000
   
 
 machbase:
-  scheme: http
   host: 127.0.0.1
   port: 5654
 
 watcher:
   rules:
-    - source_dir: /data/cam1/in
-      target_dir: /data/cam1/out
+    - camera_id: camera1
+      source_dir: /data/camera1/in
+      target_dir: /data/camera1/out
       ext: .m4s
+      # prefix: 추가?
 
 ffmpeg:
-  binary: ./ffmpeg
+  binary: "/home/aloha/machbase/blackbox-backend/ffmpeg"
+
+  defaults:
+    input_args:
+    output_args:
+        # - flag: 공통 사용
+        #   value: 공통사용
+
+    probe_binary: "/home/aloha/machbase/blackbox-backend/ffprobe"
+    probe_args:
+      - flag: v
+        value: "error"
+      - flag: select_streams
+        value: "v:0"
+      - flag: show_entries
+        value: "packet=pts_time,duration_time"
+      - flag: of 
+        value: "csv=p=0"
+    # probe_input: "concat"
 
   cameras:
-    - id: cam1
-      rtsp_url: "rtsp://user:pa ss@10.0.0.11/stream1"   # 공백 포함(비번)
-      output_dir: "/data/cam 1"                          # 공백 포함 경로
-      output_name: "manifest.mpd"
-
+    - id: camera1
+      rtsp_url: rtsp://210.99.70.120:1935/live/cctv002.stream
+      # rtsp_url: rtsp://machbase:machbase@192.168.1.141:554/stream1 
+      output_dir: /data/camera1/in
+      output_name: manifest.md
       input_args:
         - flag: rtsp_transport
           value: "tcp"
@@ -37,27 +56,17 @@ ffmpeg:
           value: "10000000"
         - flag: use_wallclock_as_timestamps
           value: "1"
-
       mid_args:
-        - flag: copyts
+        # - flag: copyts
         - flag: c:v
           value: "copy"
-
       output_args:
         - flag: f
-          value: "dash"
+          value: dash
         - flag: seg_duration
           value: "5"
         - flag: use_template
           value: "0"
         - flag: use_timeline
           value: "0"
-
-      # shellQuote 효과를 더 보여주려고 일부러 복잡한 값 넣음(예시)
-      extra_args:
-        - flag: metadata
-          value: "title=O'Reilly demo"        # 작은따옴표 포함
-        - flag: headers
-          value: "User-Agent: My Agent/1.0"   # 공백 포함
-        - flag: loglevel
-          value: "warning"
+      extra_args: []

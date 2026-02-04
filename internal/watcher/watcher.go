@@ -9,9 +9,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 	"unsafe"
@@ -187,7 +190,10 @@ func (w *Watcher) Run(ctx context.Context) error {
 						return
 					}
 					rule := w.cfg.Rules[idx]
-					w.handleEvent(ev, name, rule)
+					if err := w.handleEvent(ctx, ev, name, rule); err != nil {
+						log.Printf("handleEvent: %v", err)
+						// return fmt.Errorf("handleEvent: %v", err)
+					}
 				})
 			}
 		}
@@ -226,52 +232,214 @@ func parseInotifyEvents(b []byte, fn func(ev unix.InotifyEvent, name string)) {
 }
 
 // 특정 이름으로 처리하는 방식은 나중에 필요할때 추가
-func (w *Watcher) handleEvent(ev unix.InotifyEvent, name string, rule config.WatcherRule) error {
-	if name == "" || strings.EqualFold(filepath.Ext(name), rule.Ext) {
-		return fmt.Errorf("")
+func (w *Watcher) handleEvent(ctx context.Context, ev unix.InotifyEvent, name string, rule config.WatcherRule) error {
+	if name == "" {
+		return nil
+	}
+	if !strings.EqualFold(filepath.Ext(name), rule.Ext) {
+		return nil
+	}
+	if ev.Mask&unix.IN_MOVED_TO == 0 {
+		return nil
 	}
 
-	if ev.Mask&unix.IN_CLOSE_WRITE != 0 {
-		if strings.EqualFold(filepath.Ext(name), rule.Ext) {
-			sourceFile := filepath.Join(rule.SourceDir, name)
-			targetFile := filepath.Join(rule.TargetDir, name)
+	if err := w.syncInit(rule); err != nil {
+		return fmt.Errorf("syncInit: %v", err)
+	}
 
-			var ok bool
-			var err error
-			switch {
-			case strings.HasPrefix(name, "chunk-stream"):
-				ok, err = checkFileMinSize(sourceFile, 1000)
-			case strings.HasPrefix(name, "init-stream"):
-				ok, err = checkFileMinSize(sourceFile, 100)
-			default:
-				return fmt.Errorf("invalid name %q", name)
-			}
+	base := filepath.Base(name)
 
-			observedEpochMs := time.Now().UTC().UnixMilli()
+	switch {
+	case strings.HasPrefix(base, "init"):
+		return nil
 
-			// ok 는 왜?
-			if !ok || err != nil {
-				return fmt.Errorf("failed to check file %q: %v", name, err)
-			}
+	case strings.HasPrefix(base, "chunk-stream"):
+		return w.proecessChunk(ctx, rule, base)
 
-			segment, err := w.ffRuner.FFprobeTiming(context.Background(), "", "")
-			if err != nil {
-				return err
-			}
+	default:
+		return nil
+	}
+}
 
-			err = w.neo.InsertChunk(context.Background(), rule.CameraID, int64(segment.StartPTS), int64(segment.Length), observedEpochMs)
-			if err != nil {
-				return err
-			}
+func (w *Watcher) syncInit(rule config.WatcherRule) error {
+	srcPattern := filepath.Join(rule.SourceDir, "init*"+rule.Ext)
+	srcInits, err := filepath.Glob(srcPattern)
+	if err != nil {
+		return err
+	}
+	if len(srcInits) == 0 {
+		return nil
+	}
 
-			log.Printf("CLOSE_WRITE (ext:%s): %s ---> %s", rule.Ext, sourceFile, targetFile)
-		} else {
-			log.Println("CLOSE_WRITE : ", name)
+	destPattern := filepath.Join(rule.TargetDir, "init*"+rule.Ext)
+	destInits, _ := filepath.Glob(destPattern)
+	for _, p := range destInits {
+		_ = os.Remove(p)
+	}
+
+	if err := os.MkdirAll(rule.TargetDir, 0o755); err != nil {
+		return err
+	}
+
+	for _, src := range srcInits {
+		dst := filepath.Join(rule.TargetDir, filepath.Base(src))
+		if err := moveFile(src, dst); err != nil {
+			return fmt.Errorf("move init %q -> %q: %v", src, dst, err)
+		}
+		log.Printf("[INIT] moved: %s -> %s", src, dst)
+	}
+	return nil
+}
+
+func extraChunkPrefix(filename, ext string) (string, error) {
+	base := filepath.Base(filename)
+
+	if ext == "" {
+		ext = filepath.Ext(base)
+	}
+	if ext == "" {
+		return "", fmt.Errorf("no extension in %q", base)
+	}
+
+	if !strings.EqualFold(filepath.Ext(base), ext) {
+		return "", fmt.Errorf("invalid ext: name=%q ext=%q want=%q", base, filepath.Ext(base), ext)
+	}
+
+	stem := strings.TrimSuffix(base, filepath.Ext(base))
+
+	i := strings.LastIndexByte(stem, '-')
+	if i < 0 || i == len(stem)-1 {
+		return "", fmt.Errorf("invalid chunk name (no numeric suffix): %q", base)
+	}
+
+	suffix := stem[i+1:]
+	if !isAllDigits(suffix) {
+		return "", fmt.Errorf("invalid chunk name (suffix not digits): %q", base)
+	}
+
+	prefix := stem[:i+1]
+	if prefix == "" {
+		return "", fmt.Errorf("invalid chunk name (empty prefix): %q", base)
+	}
+
+	return prefix, nil
+}
+
+func isAllDigits(s string) bool {
+	for _, c := range s {
+		if c < '0' || '9' < c {
+			return false
 		}
 	}
+	return len(s) > 0
+}
 
-	if ev.Mask&unix.IN_MOVED_TO != 0 {
-		log.Println("MOVED_TO: ", name)
+func (w *Watcher) proecessChunk(ctx context.Context, rule config.WatcherRule, name string) error {
+	name = filepath.Base(name)
+
+	observedEpochMs := time.Now().UnixMilli()
+
+	// prefix 추출 + 새 이름 생성
+	prefix, err := extraChunkPrefix(name, rule.Ext)
+	if err != nil {
+		return err
+	}
+	newName := prefix + strconv.FormatInt(observedEpochMs, 10) + rule.Ext
+
+	// src -> dest 이동 (새 이름)
+	srcPath := filepath.Join(rule.SourceDir, name)
+	tmpDestPath := filepath.Join(rule.TargetDir, newName)
+
+	if err := os.MkdirAll(rule.TargetDir, 0o755); err != nil {
+		return err
+	}
+	if err := moveFile(srcPath, tmpDestPath); err != nil {
+		return fmt.Errorf("move chunk %q -> %q: %v", srcPath, tmpDestPath, err)
+	}
+
+	// chunk 크기 검증
+	if ok, err := checkFileMinSize(tmpDestPath, 1000); !ok || err != nil {
+		return fmt.Errorf("chunk invalid: %v", err)
+	}
+
+	initPath := filepath.Join(rule.TargetDir, "init-stream0"+rule.Ext)
+	if ok, err := checkFileMinSize(initPath, 100); !ok || err != nil {
+		return fmt.Errorf("init invalid: %v", err)
+	}
+
+	timing, err := w.ffRuner.ProbeConcatPacketTiming(ctx, initPath, tmpDestPath)
+	if err != nil {
+		return fmt.Errorf("ProbeConcatPacketTiming: %v", err)
+	}
+
+	if timing.Length < 0 {
+		return fmt.Errorf("negative length: start=%.6f last=%.6f dur=%.6f len=%.6f",
+			timing.StartPTS, timing.LastPTS, timing.LastDur, timing.Length,
+		)
+	}
+
+	// 날짜 디렉토리 생성
+	dateDir := time.UnixMilli(observedEpochMs).UTC().Format("20060102")
+	finalDir := filepath.Join(rule.TargetDir, dateDir)
+	if err := os.MkdirAll(finalDir, 0o755); err != nil {
+		return fmt.Errorf("mkdir date dir %q: %v", finalDir, err)
+	}
+
+	// out 루트 -> 날짜 디렉토리로 이동
+	finalPath := filepath.Join(finalDir, newName)
+	if err := moveFile(tmpDestPath, finalPath); err != nil {
+		return fmt.Errorf("move into date dir %q -> %q: %v", tmpDestPath, finalPath, err)
+	}
+
+	startNs := int64(math.Round(timing.StartPTS * 1e9))
+	lengthNs := int64(math.Round(timing.Length * 1e9))
+
+	if err := w.neo.InsertChunk(ctx, rule.CameraID, startNs, lengthNs, observedEpochMs); err != nil {
+		return fmt.Errorf("InsertChunk: %v", err)
+	}
+
+	log.Printf("[CHUNK] %s -> %s start=%.6f len=%.6f epochMs=%d", name, finalPath, timing.StartPTS, timing.Length, observedEpochMs)
+
+	return nil
+}
+
+func moveFile(src, dst string) error {
+	_ = os.Remove(dst)
+
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	} else {
+		// log.Printf()
+	}
+
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+
+	_, copyErr := io.Copy(out, in)
+	closeErr := out.Close()
+	if copyErr != nil {
+		_ = os.Remove(dst)
+		return copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(dst)
+		return closeErr
+	}
+
+	if err := os.Remove(src); err != nil {
+		return err
 	}
 
 	return nil
@@ -283,7 +451,6 @@ func checkFileMinSize(path string, minSize int64) (bool, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, fmt.Errorf("%q is not exist", path)
 		}
-
 		return false, err
 	}
 	if info.IsDir() {

@@ -64,6 +64,7 @@ func New(cfg config.ServerConfig, machbase *db.Machbase) (*Server, error) {
 func (s *Server) routes() {
 	api := s.engine.Group("/api")
 
+	// ==================================================================
 	// Blackbox
 	api.GET("/cameras", s.handler.GetCameras)
 	api.GET("/get_time_range", s.handler.GetTimeRange)
@@ -75,6 +76,7 @@ func (s *Server) routes() {
 	api.GET("/sensors", s.handler.GetSensors)
 	api.GET("/sensor_data", s.handler.GetSensorData)
 
+	// ==================================================================
 	// Camera Management
 	api.POST("/camera", s.handler.CreateCamera)
 	api.GET("/camera/:id", s.handler.GetCamera)
@@ -89,6 +91,13 @@ func (s *Server) routes() {
 	// Camera Status Monitoring
 	api.GET("/camera/:id/status", s.handler.GetCameraStatus)
 	api.GET("/cameras/health", s.handler.GetCamerasHealth)
+
+	// Media Server Setting
+	api.POST("/media/setting", s.handler.EnableCamera)
+
+	// ==================================================================
+	// AI
+	api.POST("event", nil)
 
 	// Static files - use NoRoute to avoid conflict with API routes
 	fileServer := http.FileServer(http.Dir(s.cfg.BaseDir))
@@ -142,4 +151,11 @@ func cors() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+type Response struct {
+	Success bool   `json:"success"`
+	Reason  string `json:"reason"`
+	Elapse  string `json:"elapse"`
+	Data    any    `json:"data"`
 }

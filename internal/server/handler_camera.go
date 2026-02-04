@@ -1,27 +1,91 @@
 package server
 
 import (
+	"blackbox-backend/internal/db"
+	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-type CameraRequest struct {
-	Table string `json:"table"`
-	Name  string `json:"name"`
+type CameraCreateRequest struct {
+	Table string `json:"table" binding:"required"`
+	Name  string `json:"name" binding:"required"`
 	Desc  string `json:"desc"`
 
-	RtspURL   string `json:"rtsp_url"`
+	RtspURL   string `json:"rtsp_url"` // binding:"url" 어떤 url
 	WebRTCURL string `json:"webrtc_url"`
 
-	FFmpegOptions []string `json:"ffmpeg_options"` // 프론트에 전달 필요
+	FFmpegOptions []ReqKV `json:"ffmpeg_options"` // 프론트에 전달 필요
+	//input, mid, output 나눠서?
+}
+type ReqKV struct {
+	K string  `json:"k" binding:"required"`
+	V *string `json:"v"`
+}
+
+func toCameraRow(req CameraCreateRequest) (db.CameraRow, error) {
+	optsJSON, err := json.Marshal(req.FFmpegOptions)
+	if err != nil {
+		return db.CameraRow{}, err
+	}
+
+	return db.CameraRow{
+		Table:      req.Table,
+		Name:       req.Name,
+		Desc:       req.Desc,
+		RtspURL:    req.RtspURL,
+		WebRTCURL:  req.WebRTCURL,
+		FFmpegJSON: string(optsJSON),
+	}, nil
+
 }
 
 // CreateCamera handles POST /api/camera.
 // Creates a new camera with TABLE_NM, RTSP URL, webRTC URL, name, description, ffmpeg cfg.
 func (h *Handler) CreateCamera(c *gin.Context) {
-	// TODO: implement
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+	tick := time.Now()
+
+	var req CameraCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Reason:  "bad request parameter",
+			Elapse:  time.Since(tick).String(),
+			Data:    nil,
+		})
+		return
+	}
+
+	row, err := toCameraRow(req)
+	if err != nil {
+		// log
+		c.JSON(http.StatusBadRequest, Response{
+			Success: false,
+			Reason:  "bad ffmpeg options",
+			Elapse:  time.Since(tick).String(),
+			Data:    nil,
+		})
+		return
+	}
+
+	if err := h.machbase.InsertCamera(c.Request.Context(), row); err != nil {
+		c.JSON(http.StatusInternalServerError, Response{
+			Success: false,
+			Reason:  "bad insert camera",
+			Elapse:  time.Since(tick).String(),
+			Data:    nil,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Reason:  "success",
+		Elapse:  time.Since(tick).String(),
+		Data:    nil,
+	})
 }
 
 type CameraInfoResponse struct {
