@@ -41,19 +41,21 @@ var tagPattern = regexp.MustCompile(`^[A-Za-z0-9_.:-]+$`)
 type Handler struct {
 	machbase    *db.Machbase
 	dataPath    string
+	mvsDir      string
 	prefixCache map[string]string
 	fpsCache    map[string]*int
 	cacheMu     sync.RWMutex
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(machbase *db.Machbase, dataPath string) *Handler {
+func NewHandler(machbase *db.Machbase, dataPath, mvsDir string) *Handler {
 	if dataPath == "" {
 		dataPath = "/data"
 	}
 	return &Handler{
 		machbase:    machbase,
 		dataPath:    dataPath,
+		mvsDir:      mvsDir,
 		prefixCache: make(map[string]string),
 		fpsCache:    make(map[string]*int),
 	}

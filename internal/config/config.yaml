@@ -1,5 +1,6 @@
 server:
   addr: 127.0.0.1:8000
+  mvs_dir: "/home/aloha/machbase/blackbox-backend/tmp/mvs"
   
 
 machbase:

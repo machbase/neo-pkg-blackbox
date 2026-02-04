@@ -6,7 +6,8 @@ import (
 )
 
 type ServerConfig struct {
-	Addr                   string `yaml:"addr"`                     // e.g. "0.0.0.0:8000"
+	Addr                   string `yaml:"addr"` // e.g. "0.0.0.0:8000"
+	MvsDir                 string `yaml:"mvs_dir"`
 	BaseDir                string `yaml:"base_dir"`                 // static root
 	DataPath               string `yaml:"data_path"`                // segment root (default: /data)
 	ReadTimeoutSeconds     int    `yaml:"read_timeout_seconds"`     // optional

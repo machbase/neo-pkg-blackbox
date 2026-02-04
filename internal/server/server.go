@@ -47,7 +47,7 @@ func New(cfg config.ServerConfig, machbase *db.Machbase) (*Server, error) {
 	s := &Server{
 		cfg:     cfg,
 		engine:  engine,
-		handler: NewHandler(machbase, cfg.DataPath),
+		handler: NewHandler(machbase, cfg.DataPath, cfg.MvsDir),
 	}
 	s.routes()
 
@@ -96,8 +96,10 @@ func (s *Server) routes() {
 	api.POST("/media/setting", s.handler.EnableCamera)
 
 	// ==================================================================
-	// AI
-	api.POST("event", nil)
+	// MVS
+	api.POST("/mvs/camera", s.handler.CreateMvsCamera)
+	api.POST("/mvs/event", s.handler.CreateMvsEvent)
+	// ==================================================================
 
 	// Static files - use NoRoute to avoid conflict with API routes
 	fileServer := http.FileServer(http.Dir(s.cfg.BaseDir))
