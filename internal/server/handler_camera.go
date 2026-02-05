@@ -255,10 +255,9 @@ func (h *Handler) CreateMvsCamera(c *gin.Context) {
 // ============================================================
 
 type AIResultRequest struct {
-	Table        string             `json:"table" binding:"required"` // {camera}_log 테이블명
 	CameraID     string             `json:"camera_id" binding:"required"`
-	ModelID      string             `json:"model_id"`
-	Timestamp    string             `json:"timestamp" binding:"required"`  // "2026-02-02 15:30:45.123"
+	ModelID      int64              `json:"model_id"`                      // 기본값 0
+	Timestamp    int64              `json:"timestamp"`                     // Unix timestamp in milliseconds
 	Detections   map[string]float64 `json:"detections" binding:"required"` // {"person": 3, "car": 5, ...}
 	TotalObjects int                `json:"total_objects"`
 }
@@ -272,6 +271,7 @@ func (h *Handler) UploadAIResult(c *gin.Context) {
 
 	var req AIResultRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("upload Ai: %v", err)
 		c.JSON(http.StatusBadRequest, Response{
 			Success: false,
 			Reason:  "bad request parameter",
@@ -281,18 +281,17 @@ func (h *Handler) UploadAIResult(c *gin.Context) {
 		return
 	}
 
-	// timestamp 파싱 → nanoseconds
-	ts, err := time.ParseInLocation("2006-01-02 15:04:05.999", req.Timestamp, time.Local)
-	if err != nil {
+	// timestamp: milliseconds → nanoseconds
+	if req.Timestamp <= 0 {
 		c.JSON(http.StatusBadRequest, Response{
 			Success: false,
-			Reason:  "bad timestamp format, expected: 2006-01-02 15:04:05.123",
+			Reason:  "invalid timestamp: must be positive milliseconds",
 			Elapse:  time.Since(tick).String(),
 			Data:    nil,
 		})
 		return
 	}
-	tsNano := ts.UnixNano()
+	tsNano := req.Timestamp * 1000000 // milliseconds to nanoseconds
 
 	config := h.getCameraConfig(req.CameraID)
 	if config == nil {
@@ -319,7 +318,7 @@ func (h *Handler) UploadAIResult(c *gin.Context) {
 			})
 		}
 
-		if err := h.machbase.InsertCameraLogs(c.Request.Context(), req.Table, logs); err != nil {
+		if err := h.machbase.InsertCameraLogs(c.Request.Context(), req.CameraID+"_log", logs); err != nil {
 			c.JSON(http.StatusInternalServerError, Response{
 				Success: false,
 				Reason:  "failed to insert camera logs",

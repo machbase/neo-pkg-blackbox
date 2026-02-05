@@ -410,10 +410,9 @@ func TestAPI_UploadAIResult(t *testing.T) {
 
 	t.Run("Success - SaveObjects=true with enabled rules", func(t *testing.T) {
 		reqBody := AIResultRequest{
-			Table:     tableName,
 			CameraID:  cameraID,
 			ModelID:   "model_v1",
-			Timestamp: time.Now().Format("2006-01-02 15:04:05.000"),
+			Timestamp: time.Now().UnixMilli(), // Unix timestamp in milliseconds
 			Detections: map[string]float64{
 				"person": 7.0,
 				"car":    3.0,
@@ -433,12 +432,11 @@ func TestAPI_UploadAIResult(t *testing.T) {
 		require.True(t, resp.Success, resp.Reason)
 	})
 
-	t.Run("BadRequest - Invalid timestamp format", func(t *testing.T) {
+	t.Run("BadRequest - Invalid timestamp (zero or negative)", func(t *testing.T) {
 		reqBody := AIResultRequest{
-			Table:     tableName,
 			CameraID:  cameraID,
 			ModelID:   "model_v1",
-			Timestamp: "invalid-timestamp",
+			Timestamp: 0, // Invalid: zero timestamp
 			Detections: map[string]float64{
 				"person": 5.0,
 			},
@@ -458,10 +456,9 @@ func TestAPI_UploadAIResult(t *testing.T) {
 
 	t.Run("NotFound - Camera config not found", func(t *testing.T) {
 		reqBody := AIResultRequest{
-			Table:     "nonexistent_log",
 			CameraID:  "nonexistent_camera",
 			ModelID:   "model_v1",
-			Timestamp: time.Now().Format("2006-01-02 15:04:05.000"),
+			Timestamp: time.Now().UnixMilli(),
 			Detections: map[string]float64{
 				"person": 5.0,
 			},
@@ -510,10 +507,9 @@ func TestAPI_UploadAIResult(t *testing.T) {
 		require.NoError(t, err)
 
 		reqBody := AIResultRequest{
-			Table:     tableName2,
 			CameraID:  cameraID2,
 			ModelID:   "model_v1",
-			Timestamp: time.Now().Format("2006-01-02 15:04:05.000"),
+			Timestamp: time.Now().UnixMilli(),
 			Detections: map[string]float64{
 				"person": 5.0,
 			},
@@ -564,7 +560,7 @@ func TestAPI_UploadAIResult(t *testing.T) {
 			Table:     tableName3,
 			CameraID:  cameraID3,
 			ModelID:   "model_v1",
-			Timestamp: time.Now().Format("2006-01-02 15:04:05.000"),
+			Timestamp: time.Now().UnixMilli(),
 			Detections: map[string]float64{
 				"person": 5.0,
 			},

@@ -40,11 +40,12 @@ func (m *Machbase) CreateCameraTables(ctx context.Context, name string) error {
     name VARCHAR(128) PRIMARY KEY,
     time DATETIME BASETIME,
     value DOUBLE,
-    model_id VARCHAR(64)
+    model_id INTEGER 
 ) METADATA (
     camera_id VARCHAR(64),
     ident VARCHAR(64)
 )`, name)
+	// model_id VARCHAR(64)
 
 	if _, err := m.Query(ctx, sqlLog); err != nil {
 		return fmt.Errorf("create table %s_log: %w", name, err)
@@ -58,7 +59,7 @@ type CameraLogRow struct {
 	Name     string  // camera_id.ident (ex: camera1.person)
 	Time     int64   // nanoseconds
 	Value    float64 // detection count
-	ModelID  string
+	ModelID  int64
 	CameraID string // metadata
 	Ident    string // metadata
 }
@@ -91,4 +92,3 @@ func (m *Machbase) InsertCameraEvents(ctx context.Context, table string, events 
 	}
 	return m.WriteRows(ctx, table, columns, rows)
 }
-
