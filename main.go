@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,6 +11,7 @@ import (
 	"blackbox-backend/internal/config"
 	"blackbox-backend/internal/db"
 	"blackbox-backend/internal/ffmpeg"
+	"blackbox-backend/internal/logger"
 	"blackbox-backend/internal/server"
 	"blackbox-backend/internal/watcher"
 
@@ -43,18 +43,24 @@ func run(c context.Context, path string) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
+	// Initialize logger
+	if err := logger.Init(cfg.Log); err != nil {
+		return fmt.Errorf("init logger: %w", err)
+	}
+	log := logger.GetLogger()
+
 	neo, err := db.NewMachbase(cfg.Machbase)
 	if err != nil {
 		return fmt.Errorf("create machbase client: %w", err)
 	}
 
-	svr, err := server.New(cfg.Server, neo, cfg.FFmpeg.Binary)
+	ff := ffmpeg.New(cfg.FFmpeg)
+	w := watcher.New(cfg.Watcher, neo, ff)
+
+	svr, err := server.New(cfg.Server, neo, w, cfg.FFmpeg.Binary)
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
 	}
-
-	ff := ffmpeg.New(cfg.FFmpeg)
-	w := watcher.New(cfg.Watcher, neo, ff)
 
 	g, gctx := errgroup.WithContext(ctx)
 
@@ -71,8 +77,9 @@ func run(c context.Context, path string) error {
 	})
 
 	if err := g.Wait(); err != nil {
-		log.Printf("shutdown: %v", err)
+		log.Warnf("shutdown: %v", err)
 	}
 
+	log.Info("blackbox-backend stopped gracefully")
 	return nil
 }

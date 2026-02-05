@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blackbox Backend API Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+        }
+
+        .content {
+            display: flex;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            overflow-y: auto;
+            max-height: calc(100vh - 140px);
+        }
+
+        .nav-section {
+            padding: 20px 15px 10px;
+        }
+
+        .nav-section h3 {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            color: #6c757d;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .nav-item {
+            padding: 10px 15px;
+            margin-bottom: 5px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .nav-item:hover {
+            background: #e9ecef;
+        }
+
+        .nav-item.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+            max-height: calc(100vh - 140px);
+        }
+
+        .api-section {
+            display: none;
+        }
+
+        .api-section.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #495057;
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 10px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            min-height: 120px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 10px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .response-area {
+            margin-top: 30px;
+        }
+
+        .response-area h3 {
+            margin-bottom: 15px;
+            color: #495057;
+        }
+
+        .response-box {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .response-box.success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+
+        .response-box.error {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+
+        .cameras-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .camera-card {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
+
+        .camera-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .camera-card h4 {
+            margin-bottom: 10px;
+            color: #495057;
+        }
+
+        .camera-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .camera-status.running {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .camera-status.stopped {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .camera-info {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-bottom: 15px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .method-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+
+        .method-get { background: #17a2b8; color: white; }
+        .method-post { background: #28a745; color: white; }
+        .method-put { background: #ffc107; color: #000; }
+        .method-delete { background: #dc3545; color: white; }
+
+        .help-text {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎥 Blackbox Backend API Tester</h1>
+            <p>모든 API 엔드포인트를 테스트할 수 있는 통합 관리 도구</p>
+        </div>
+
+        <div class="content">
+            <div class="sidebar">
+                <div class="nav-section">
+                    <h3>Camera Management</h3>
+                    <div class="nav-item" data-section="cameras-list">카메라 목록</div>
+                    <div class="nav-item" data-section="camera-create">카메라 생성</div>
+                    <div class="nav-item" data-section="camera-get">카메라 조회</div>
+                    <div class="nav-item" data-section="camera-update">카메라 수정</div>
+                    <div class="nav-item" data-section="camera-delete">카메라 삭제</div>
+                </div>
+
+                <div class="nav-section">
+                    <h3>Camera Control</h3>
+                    <div class="nav-item" data-section="camera-enable">카메라 활성화</div>
+                    <div class="nav-item" data-section="camera-disable">카메라 비활성화</div>
+                    <div class="nav-item" data-section="camera-status">카메라 상태</div>
+                    <div class="nav-item" data-section="cameras-health">전체 헬스체크</div>
+                </div>
+
+                <div class="nav-section">
+                    <h3>Video Chunks</h3>
+                    <div class="nav-item" data-section="time-range">시간 범위 조회</div>
+                    <div class="nav-item" data-section="chunk-info">청크 정보</div>
+                    <div class="nav-item" data-section="chunk-download">청크 다운로드</div>
+                    <div class="nav-item" data-section="rollup-info">롤업 정보</div>
+                </div>
+
+                <div class="nav-section">
+                    <h3>Sensors</h3>
+                    <div class="nav-item" data-section="sensors-list">센서 목록</div>
+                    <div class="nav-item" data-section="sensor-data">센서 데이터</div>
+                </div>
+
+                <div class="nav-section">
+                    <h3>Event Rules</h3>
+                    <div class="nav-item" data-section="event-rule-get">규칙 조회</div>
+                    <div class="nav-item" data-section="event-rule-create">규칙 생성</div>
+                    <div class="nav-item" data-section="event-rule-update">규칙 수정</div>
+                    <div class="nav-item" data-section="event-rule-delete">규칙 삭제</div>
+                </div>
+
+                <div class="nav-section">
+                    <h3>AI Results</h3>
+                    <div class="nav-item" data-section="ai-result">AI 결과 업로드</div>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <!-- Camera List Section -->
+                <div class="api-section active" id="cameras-list">
+                    <h2><span class="method-badge method-get">GET</span> 카메라 목록</h2>
+                    <p class="help-text">모든 카메라 목록을 조회합니다.</p>
+                    <button class="btn btn-primary" onclick="getCameras()">조회하기</button>
+                    <div class="cameras-grid" id="cameras-grid"></div>
+                    <div class="response-area" id="cameras-list-response"></div>
+                </div>
+
+                <!-- Camera Create Section -->
+                <div class="api-section" id="camera-create">
+                    <h2><span class="method-badge method-post">POST</span> 카메라 생성</h2>
+                    <div class="form-group">
+                        <label>Table Name / Camera ID *</label>
+                        <input type="text" id="create-table" placeholder="camera1" />
+                    </div>
+                    <div class="form-group">
+                        <label>Camera Name *</label>
+                        <input type="text" id="create-name" placeholder="Main Entrance" />
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <input type="text" id="create-desc" placeholder="건물 정문 카메라" />
+                    </div>
+                    <div class="form-group">
+                        <label>RTSP URL *</label>
+                        <input type="text" id="create-rtsp" placeholder="rtsp://192.168.1.100:554/stream" />
+                    </div>
+                    <div class="form-group">
+                        <label>Output Directory</label>
+                        <input type="text" id="create-output-dir" placeholder="/data/camera1/in" />
+                    </div>
+                    <div class="form-group">
+                        <label>Output Name</label>
+                        <input type="text" id="create-output-name" placeholder="manifest.mpd" />
+                    </div>
+                    <div class="form-group">
+                        <label>Detect Objects (쉼표로 구분)</label>
+                        <input type="text" id="create-objects" placeholder="person,car,truck,bus" />
+                    </div>
+                    <button class="btn btn-success" onclick="createCamera()">생성하기</button>
+                    <div class="response-area" id="camera-create-response"></div>
+                </div>
+
+                <!-- Camera Get Section -->
+                <div class="api-section" id="camera-get">
+                    <h2><span class="method-badge method-get">GET</span> 카메라 조회</h2>
+                    <div class="form-group">
+                        <label>Camera ID *</label>
+                        <input type="text" id="get-camera-id" placeholder="camera1" />
+                    </div>
+                    <button class="btn btn-primary" onclick="getCamera()">조회하기</button>
+                    <div class="response-area" id="camera-get-response"></div>
+                </div>
+
+                <!-- Camera Update Section -->
+                <div class="api-section" id="camera-update">
+                    <h2><span class="method-badge method-post">POST</span> 카메라 수정</h2>
+                    <div class="form-group">
+                        <label>Camera ID *</label>
+                        <input type="text" id="update-camera-id" placeholder="camera1" />
+                    </div>
+                    <div class="form-group">
+                        <label>JSON Body *</label>
+                        <textarea id="update-camera-json" placeholder='{"name": "camera1", "desc": "Updated description", ...}'></textarea>
+                        <p class="help-text">전체 카메라 설정 JSON을 입력하세요</p>
+                    </div>
+                    <button class="btn btn-success" onclick="updateCamera()">수정하기</button>
+                    <div class="response-area" id="camera-update-response"></div>
+                </div>
+
+                <!-- Camera Delete Section -->
+                <div class="api-section" id="camera-delete">
+                    <h2><span class="method-badge method-delete">DELETE</span> 카메라 삭제</h2>
+                    <div class="form-group">
+                        <label>Camera ID *</label>
+                        <input type="text" id="delete-camera-id" placeholder="camera1" />
+                    </div>
+                    <button class="btn btn-danger" onclick="deleteCamera()">삭제하기</button>
+                    <div class="response-area" id="camera-delete-response"></div>
+                </div>
+
+                <!-- Camera Enable Section -->
+                <div class="api-section" id="camera-enable">
+                    <h2><span class="method-badge method-post">POST</span> 카메라 활성화 (FFmpeg 시작)</h2>
+                    <div class="form-group">
+                        <label>Camera ID *</label>
+                        <input type="text" id="enable-camera-id" placeholder="camera1" />
+                    </div>
+                    <button class="btn btn-success" onclick="enableCamera()">활성화하기</button>
+                    <div class="response-area" id="camera-enable-response"></div>
+                </div>
+
+                <!-- Camera Disable Section -->
+                <div class="api-section" id="camera-disable">
+                    <h2><span class="method-badge method-post">POST</span> 카메라 비활성화 (FFmpeg 중지)</h2>
+                    <div class="form-group">
+                        <label>Camera ID *</label>
+                        <input type="text" id="disable-camera-id" placeholder="camera1" />
+                    </div>
+                    <button class="btn btn-danger" onclick="disableCamera()">비활성화하기</button>
+                    <div class="response-area" id="camera-disable-response"></div>
+                </div>
+
+                <!-- Camera Status Section -->
+                <div class="api-section" id="camera-status">
+                    <h2><span class="method-badge method-get">GET</span> 카메라 상태</h2>
+                    <div class="form-group">
+                        <label>Camera ID *</label>
+                        <input type="text" id="status-camera-id" placeholder="camera1" />
+                    </div>
+                    <button class="btn btn-primary" onclick="getCameraStatus()">조회하기</button>
+                    <div class="response-area" id="camera-status-response"></div>
+                </div>
+
+                <!-- Cameras Health Section -->
+                <div class="api-section" id="cameras-health">
+                    <h2><span class="method-badge method-get">GET</span> 전체 카메라 헬스체크</h2>
+                    <p class="help-text">모든 카메라의 상태를 한번에 확인합니다.</p>
+                    <button class="btn btn-primary" onclick="getCamerasHealth()">조회하기</button>
+                    <div class="response-area" id="cameras-health-response"></div>
+                </div>
+
+                <!-- Time Range Section -->
+                <div class="api-section" id="time-range">
+                    <h2><span class="method-badge method-get">GET</span> 시간 범위 조회</h2>
+                    <div class="form-group">
+                        <label>Tag Name (Camera ID) *</label>
+                        <input type="text" id="timerange-tagname" placeholder="camera1" />
+                    </div>
+                    <button class="btn btn-primary" onclick="getTimeRange()">조회하기</button>
+                    <div class="response-area" id="time-range-response"></div>
+                </div>
+
+                <!-- Chunk Info Section -->
+                <div class="api-section" id="chunk-info">
+                    <h2><span class="method-badge method-get">GET</span> 청크 정보</h2>
+                    <div class="form-group">
+                        <label>Tag Name (Camera ID) *</label>
+                        <input type="text" id="chunkinfo-tagname" placeholder="camera1" />
+                    </div>
+                    <div class="form-group">
+                        <label>Time (Unix nanoseconds) *</label>
+                        <input type="text" id="chunkinfo-time" placeholder="1640000000000000000" />
+                    </div>
+                    <button class="btn btn-primary" onclick="getChunkInfo()">조회하기</button>
+                    <div class="response-area" id="chunk-info-response"></div>
+                </div>
+
+                <!-- Chunk Download Section -->
+                <div class="api-section" id="chunk-download">
+                    <h2><span class="method-badge method-get">GET</span> 청크 다운로드</h2>
+                    <div class="form-group">
+                        <label>Tag Name (Camera ID) *</label>
+                        <input type="text" id="chunk-tagname" placeholder="camera1" />
+                    </div>
+                    <div class="form-group">
+                        <label>Time (Unix nanoseconds) *</label>
+                        <input type="text" id="chunk-time" placeholder="1640000000000000000" />
+                    </div>
+                    <button class="btn btn-primary" onclick="downloadChunk()">다운로드하기</button>
+                    <div class="response-area" id="chunk-download-response"></div>
+                </div>
+
+                <!-- Rollup Info Section -->
+                <div class="api-section" id="rollup-info">
+                    <h2><span class="method-badge method-get">GET</span> 롤업 정보</h2>
+                    <div class="form-group">
+                        <label>Tag Name (Camera ID) *</label>
+                        <input type="text" id="rollup-tagname" placeholder="camera1" />
+                    </div>
+                    <div class="form-group">
+                        <label>Minutes</label>
+                        <input type="number" id="rollup-minutes" placeholder="60" />
+                    </div>
+                    <div class="form-group">
+                        <label>Start Time (Unix nanoseconds)</label>
+                        <input type="text" id="rollup-start" placeholder="1640000000000000000" />
+                    </div>
+                    <div class="form-group">
+                        <label>End Time (Unix nanoseconds)</label>
+                        <input type="text" id="rollup-end" placeholder="1640100000000000000" />
+                    </div>
+                    <button class="btn btn-primary" onclick="getRollupInfo()">조회하기</button>
+                    <div class="response-area" id="rollup-info-response"></div>
+                </div>
+
+                <!-- Sensors List Section -->
+                <div class="api-section" id="sensors-list">
+                    <h2><span class="method-badge method-get">GET</span> 센서 목록</h2>
+                    <div class="form-group">
+                        <label>Tag Name (Camera ID)</label>
+                        <input type="text" id="sensors-tagname" placeholder="camera1" />
+                    </div>
+                    <button class="btn btn-primary" onclick="getSensors()">조회하기</button>
+                    <div class="response-area" id="sensors-list-response"></div>
+                </div>
+
+                <!-- Sensor Data Section -->
+                <div class="api-section" id="sensor-data">
+                    <h2><span class="method-badge method-get">GET</span> 센서 데이터</h2>
+                    <div class="form-group">
+                        <label>Sensors (쉼표로 구분) *</label>
+                        <input type="text" id="sensordata-sensors" placeholder="sensor-1,sensor-2" />
+                    </div>
+                    <div class="form-group">
+                        <label>Start Time (Unix nanoseconds) *</label>
+                        <input type="text" id="sensordata-start" placeholder="1640000000000000000" />
+                    </div>
+                    <div class="form-group">
+                        <label>End Time (Unix nanoseconds) *</label>
+                        <input type="text" id="sensordata-end" placeholder="1640100000000000000" />
+                    </div>
+                    <button class="btn btn-primary" onclick="getSensorData()">조회하기</button>
+                    <div class="response-area" id="sensor-data-response"></div>
+                </div>
+
+                <!-- Event Rule Get Section -->
+                <div class="api-section" id="event-rule-get">
+                    <h2><span class="method-badge method-get">GET</span> 이벤트 규칙 조회</h2>
+                    <div class="form-group">
+                        <label>Camera ID *</label>
+                        <input type="text" id="eventrule-get-camera" placeholder="camera1" />
+                    </div>
+                    <button class="btn btn-primary" onclick="getEventRule()">조회하기</button>
+                    <div class="response-area" id="event-rule-get-response"></div>
+                </div>
+
+                <!-- Event Rule Create Section -->
+                <div class="api-section" id="event-rule-create">
+                    <h2><span class="method-badge method-post">POST</span> 이벤트 규칙 생성</h2>
+                    <div class="form-group">
+                        <label>JSON Body *</label>
+                        <textarea id="eventrule-create-json" placeholder='{"camera_id": "camera1", "rule_id": "rule-1", "expression_text": "person > 0", ...}'></textarea>
+                    </div>
+                    <button class="btn btn-success" onclick="createEventRule()">생성하기</button>
+                    <div class="response-area" id="event-rule-create-response"></div>
+                </div>
+
+                <!-- Event Rule Update Section -->
+                <div class="api-section" id="event-rule-update">
+                    <h2><span class="method-badge method-put">PUT</span> 이벤트 규칙 수정</h2>
+                    <div class="form-group">
+                        <label>JSON Body *</label>
+                        <textarea id="eventrule-update-json" placeholder='{"camera_id": "camera1", "rule_id": "rule-1", ...}'></textarea>
+                    </div>
+                    <button class="btn btn-success" onclick="updateEventRule()">수정하기</button>
+                    <div class="response-area" id="event-rule-update-response"></div>
+                </div>
+
+                <!-- Event Rule Delete Section -->
+                <div class="api-section" id="event-rule-delete">
+                    <h2><span class="method-badge method-delete">DELETE</span> 이벤트 규칙 삭제</h2>
+                    <div class="form-group">
+                        <label>Camera ID *</label>
+                        <input type="text" id="eventrule-delete-camera" placeholder="camera1" />
+                    </div>
+                    <div class="form-group">
+                        <label>Rule ID *</label>
+                        <input type="text" id="eventrule-delete-rule" placeholder="rule-1" />
+                    </div>
+                    <button class="btn btn-danger" onclick="deleteEventRule()">삭제하기</button>
+                    <div class="response-area" id="event-rule-delete-response"></div>
+                </div>
+
+                <!-- AI Result Section -->
+                <div class="api-section" id="ai-result">
+                    <h2><span class="method-badge method-post">POST</span> AI 결과 업로드</h2>
+                    <div class="form-group">
+                        <label>Camera ID *</label>
+                        <input type="text" id="ai-camera-id" placeholder="camera1" />
+                    </div>
+                    <div class="form-group">
+                        <label>Model ID</label>
+                        <input type="number" id="ai-model-id" placeholder="0" value="0" />
+                    </div>
+                    <div class="form-group">
+                        <label>Timestamp (milliseconds) *</label>
+                        <input type="text" id="ai-timestamp" :value="Date.now()" />
+                        <p class="help-text">현재 시간: <span id="current-timestamp"></span></p>
+                    </div>
+                    <div class="form-group">
+                        <label>Detections (JSON) *</label>
+                        <textarea id="ai-detections" placeholder='{"person": 3, "car": 2, "truck": 1}'></textarea>
+                    </div>
+                    <button class="btn btn-success" onclick="uploadAIResult()">업로드하기</button>
+                    <div class="response-area" id="ai-result-response"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+
+        // Update current timestamp
+        setInterval(() => {
+            const elem = document.getElementById('current-timestamp');
+            if (elem) {
+                elem.textContent = Date.now();
+            }
+            const input = document.getElementById('ai-timestamp');
+            if (input && !input.value) {
+                input.value = Date.now();
+            }
+        }, 1000);
+
+        // Navigation
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function() {
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                document.querySelectorAll('.api-section').forEach(s => s.classList.remove('active'));
+
+                this.classList.add('active');
+                const sectionId = this.getAttribute('data-section');
+                document.getElementById(sectionId).classList.add('active');
+            });
+        });
+
+        function showResponse(elementId, data, isError = false) {
+            const container = document.getElementById(elementId);
+            container.innerHTML = `
+                <h3>응답 결과</h3>
+                <div class="response-box ${isError ? 'error' : 'success'}">
+${JSON.stringify(data, null, 2)}
+                </div>
+            `;
+        }
+
+        function showLoading(elementId) {
+            const container = document.getElementById(elementId);
+            container.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>로딩 중...</p>
+                </div>
+            `;
+        }
+
+        async function apiRequest(url, method = 'GET', body = null) {
+            const options = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            };
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+
+            const response = await fetch(url, options);
+            const contentType = response.headers.get('content-type');
+
+            if (contentType && contentType.includes('application/json')) {
+                return await response.json();
+            } else {
+                return { raw: await response.text() };
+            }
+        }
+
+        // Camera Management Functions
+        async function getCameras() {
+            showLoading('cameras-list-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/cameras`);
+                showResponse('cameras-list-response', data);
+
+                // Display cameras in grid
+                if (data.data && Array.isArray(data.data)) {
+                    const grid = document.getElementById('cameras-grid');
+                    grid.innerHTML = data.data.map(cam => `
+                        <div class="camera-card">
+                            <h4>${cam.name || cam.table}</h4>
+                            <p>${cam.desc || 'No description'}</p>
+                            <div style="margin-top: 10px;">
+                                <button class="btn btn-primary" onclick="enableCamera('${cam.name}')">활성화</button>
+                                <button class="btn btn-danger" onclick="disableCamera('${cam.name}')">비활성화</button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                showResponse('cameras-list-response', { error: error.message }, true);
+            }
+        }
+
+        async function createCamera() {
+            const body = {
+                table: document.getElementById('create-table').value,
+                name: document.getElementById('create-name').value,
+                desc: document.getElementById('create-desc').value,
+                rtsp_url: document.getElementById('create-rtsp').value,
+                output_dir: document.getElementById('create-output-dir').value,
+                output_name: document.getElementById('create-output-name').value || 'manifest.mpd',
+                detect_objects: document.getElementById('create-objects').value.split(',').map(s => s.trim()).filter(Boolean),
+                save_objects: true,
+                ffmpeg_options: []
+            };
+
+            showLoading('camera-create-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/camera`, 'POST', body);
+                showResponse('camera-create-response', data);
+            } catch (error) {
+                showResponse('camera-create-response', { error: error.message }, true);
+            }
+        }
+
+        async function getCamera() {
+            const id = document.getElementById('get-camera-id').value;
+            showLoading('camera-get-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/camera/${id}`);
+                showResponse('camera-get-response', data);
+            } catch (error) {
+                showResponse('camera-get-response', { error: error.message }, true);
+            }
+        }
+
+        async function updateCamera() {
+            const id = document.getElementById('update-camera-id').value;
+            const jsonStr = document.getElementById('update-camera-json').value;
+
+            showLoading('camera-update-response');
+            try {
+                const body = JSON.parse(jsonStr);
+                const data = await apiRequest(`${API_BASE}/camera/${id}`, 'POST', body);
+                showResponse('camera-update-response', data);
+            } catch (error) {
+                showResponse('camera-update-response', { error: error.message }, true);
+            }
+        }
+
+        async function deleteCamera() {
+            const id = document.getElementById('delete-camera-id').value;
+            if (!confirm(`정말로 카메라 "${id}"를 삭제하시겠습니까?`)) return;
+
+            showLoading('camera-delete-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/camera/${id}`, 'DELETE');
+                showResponse('camera-delete-response', data);
+            } catch (error) {
+                showResponse('camera-delete-response', { error: error.message }, true);
+            }
+        }
+
+        async function enableCamera(cameraId) {
+            const id = cameraId || document.getElementById('enable-camera-id').value;
+            showLoading('camera-enable-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/camera/${id}/enable`, 'POST');
+                showResponse('camera-enable-response', data);
+            } catch (error) {
+                showResponse('camera-enable-response', { error: error.message }, true);
+            }
+        }
+
+        async function disableCamera(cameraId) {
+            const id = cameraId || document.getElementById('disable-camera-id').value;
+            showLoading('camera-disable-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/camera/${id}/disable`, 'POST');
+                showResponse('camera-disable-response', data);
+            } catch (error) {
+                showResponse('camera-disable-response', { error: error.message }, true);
+            }
+        }
+
+        async function getCameraStatus() {
+            const id = document.getElementById('status-camera-id').value;
+            showLoading('camera-status-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/camera/${id}/status`);
+                showResponse('camera-status-response', data);
+            } catch (error) {
+                showResponse('camera-status-response', { error: error.message }, true);
+            }
+        }
+
+        async function getCamerasHealth() {
+            showLoading('cameras-health-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/cameras/health`);
+                showResponse('cameras-health-response', data);
+            } catch (error) {
+                showResponse('cameras-health-response', { error: error.message }, true);
+            }
+        }
+
+        // Video Chunk Functions
+        async function getTimeRange() {
+            const tagname = document.getElementById('timerange-tagname').value;
+            showLoading('time-range-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/get_time_range?tagname=${tagname}`);
+                showResponse('time-range-response', data);
+            } catch (error) {
+                showResponse('time-range-response', { error: error.message }, true);
+            }
+        }
+
+        async function getChunkInfo() {
+            const tagname = document.getElementById('chunkinfo-tagname').value;
+            const time = document.getElementById('chunkinfo-time').value;
+            showLoading('chunk-info-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/get_chunk_info?tagname=${tagname}&time=${time}`);
+                showResponse('chunk-info-response', data);
+            } catch (error) {
+                showResponse('chunk-info-response', { error: error.message }, true);
+            }
+        }
+
+        async function downloadChunk() {
+            const tagname = document.getElementById('chunk-tagname').value;
+            const time = document.getElementById('chunk-time').value;
+            const url = `${API_BASE}/v_get_chunk?tagname=${tagname}&time=${time}`;
+
+            showResponse('chunk-download-response', { message: '다운로드 시작...', url });
+            window.open(url, '_blank');
+        }
+
+        async function getRollupInfo() {
+            const tagname = document.getElementById('rollup-tagname').value;
+            const minutes = document.getElementById('rollup-minutes').value;
+            const start = document.getElementById('rollup-start').value;
+            const end = document.getElementById('rollup-end').value;
+
+            let url = `${API_BASE}/get_camera_rollup_info?tagname=${tagname}`;
+            if (minutes) url += `&minutes=${minutes}`;
+            if (start) url += `&start_time=${start}`;
+            if (end) url += `&end_time=${end}`;
+
+            showLoading('rollup-info-response');
+            try {
+                const data = await apiRequest(url);
+                showResponse('rollup-info-response', data);
+            } catch (error) {
+                showResponse('rollup-info-response', { error: error.message }, true);
+            }
+        }
+
+        // Sensor Functions
+        async function getSensors() {
+            const tagname = document.getElementById('sensors-tagname').value;
+            const url = tagname ? `${API_BASE}/sensors?tagname=${tagname}` : `${API_BASE}/sensors`;
+
+            showLoading('sensors-list-response');
+            try {
+                const data = await apiRequest(url);
+                showResponse('sensors-list-response', data);
+            } catch (error) {
+                showResponse('sensors-list-response', { error: error.message }, true);
+            }
+        }
+
+        async function getSensorData() {
+            const sensors = document.getElementById('sensordata-sensors').value;
+            const start = document.getElementById('sensordata-start').value;
+            const end = document.getElementById('sensordata-end').value;
+
+            showLoading('sensor-data-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/sensor_data?sensors=${sensors}&start=${start}&end=${end}`);
+                showResponse('sensor-data-response', data);
+            } catch (error) {
+                showResponse('sensor-data-response', { error: error.message }, true);
+            }
+        }
+
+        // Event Rule Functions
+        async function getEventRule() {
+            const cameraId = document.getElementById('eventrule-get-camera').value;
+            showLoading('event-rule-get-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/event_rule?camera_id=${cameraId}`);
+                showResponse('event-rule-get-response', data);
+            } catch (error) {
+                showResponse('event-rule-get-response', { error: error.message }, true);
+            }
+        }
+
+        async function createEventRule() {
+            const jsonStr = document.getElementById('eventrule-create-json').value;
+            showLoading('event-rule-create-response');
+            try {
+                const body = JSON.parse(jsonStr);
+                const data = await apiRequest(`${API_BASE}/event_rule`, 'POST', body);
+                showResponse('event-rule-create-response', data);
+            } catch (error) {
+                showResponse('event-rule-create-response', { error: error.message }, true);
+            }
+        }
+
+        async function updateEventRule() {
+            const jsonStr = document.getElementById('eventrule-update-json').value;
+            showLoading('event-rule-update-response');
+            try {
+                const body = JSON.parse(jsonStr);
+                const data = await apiRequest(`${API_BASE}/event_rule`, 'PUT', body);
+                showResponse('event-rule-update-response', data);
+            } catch (error) {
+                showResponse('event-rule-update-response', { error: error.message }, true);
+            }
+        }
+
+        async function deleteEventRule() {
+            const cameraId = document.getElementById('eventrule-delete-camera').value;
+            const ruleId = document.getElementById('eventrule-delete-rule').value;
+
+            if (!confirm(`정말로 규칙 "${ruleId}"를 삭제하시겠습니까?`)) return;
+
+            showLoading('event-rule-delete-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/event_rule?camera_id=${cameraId}&rule_id=${ruleId}`, 'DELETE');
+                showResponse('event-rule-delete-response', data);
+            } catch (error) {
+                showResponse('event-rule-delete-response', { error: error.message }, true);
+            }
+        }
+
+        // AI Result Function
+        async function uploadAIResult() {
+            const cameraId = document.getElementById('ai-camera-id').value;
+            const modelId = parseInt(document.getElementById('ai-model-id').value) || 0;
+            const timestamp = parseInt(document.getElementById('ai-timestamp').value);
+            const detectionsStr = document.getElementById('ai-detections').value;
+
+            showLoading('ai-result-response');
+            try {
+                const detections = JSON.parse(detectionsStr);
+                const body = {
+                    camera_id: cameraId,
+                    model_id: modelId,
+                    timestamp: timestamp,
+                    detections: detections,
+                    total_objects: Object.values(detections).reduce((a, b) => a + b, 0)
+                };
+
+                const data = await apiRequest(`${API_BASE}/ai/result`, 'POST', body);
+                showResponse('ai-result-response', data);
+            } catch (error) {
+                showResponse('ai-result-response', { error: error.message }, true);
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            getCameras();
+        });
+    </script>
+</body>
+</html>

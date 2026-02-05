@@ -1,3 +1,5 @@
+//go:build linux
+
 package watcher
 
 import (
@@ -16,6 +18,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -33,6 +36,12 @@ type Watcher struct {
 	// 자주 사용하는 필드들
 	RamDisk string
 	DataDir string
+
+	// 동적 watch 관리 (thread-safe)
+	mu       sync.Mutex
+	inFd     int
+	watchSet *WatchSet
+	mask     uint32
 }
 
 func New(cfg config.WatcherConfig, neo *db.Machbase, ffRunner *ffmpeg.FFmpegRunner) *Watcher {
@@ -44,31 +53,63 @@ func New(cfg config.WatcherConfig, neo *db.Machbase, ffRunner *ffmpeg.FFmpegRunn
 }
 
 type WatchSet struct {
-	wdToIdx map[int32]int
-	wds     map[int32]struct{}
+	wdToRule   map[int32]config.WatcherRule // watch descriptor -> rule
+	cameraToWd map[string]int32             // cameraID -> watch descriptor
 }
 
 func (ws *WatchSet) RemoveAll(inFd int) {
-	for wd := range ws.wds {
+	for wd := range ws.wdToRule {
 		_, _ = unix.InotifyRmWatch(inFd, uint32(wd))
 	}
 }
 
-func (w *Watcher) addWatches(inFd int, rules []config.WatcherRule, mask uint32) (*WatchSet, error) {
-	ws := WatchSet{
-		wdToIdx: make(map[int32]int, len(rules)),
-		wds:     make(map[int32]struct{}, len(rules)),
+func (ws *WatchSet) Add(inFd int, rule config.WatcherRule, mask uint32) error {
+	// 이미 해당 카메라가 등록되어 있는지 확인
+	if wd, exists := ws.cameraToWd[rule.CameraID]; exists {
+		return fmt.Errorf("camera %q already watching (wd=%d)", rule.CameraID, wd)
 	}
 
-	for i, rule := range rules {
-		wd, err := unix.InotifyAddWatch(inFd, rule.SourceDir, mask)
-		if err != nil {
-			// 하나의 rule이 실패해도 전체 종료 : 무시하고 나머지 rule 실행
-			return nil, fmt.Errorf("failed to inotify add watch(source_dir=%q): %v", rule.SourceDir, err)
-		}
+	wd, err := unix.InotifyAddWatch(inFd, rule.SourceDir, mask)
+	if err != nil {
+		return fmt.Errorf("failed to inotify add watch(source_dir=%q): %v", rule.SourceDir, err)
+	}
 
-		ws.wdToIdx[int32(wd)] = i
-		ws.wds[int32(wd)] = struct{}{}
+	ws.wdToRule[int32(wd)] = rule
+	ws.cameraToWd[rule.CameraID] = int32(wd)
+	return nil
+}
+
+func (ws *WatchSet) Remove(inFd int, cameraID string) error {
+	wd, ok := ws.cameraToWd[cameraID]
+	if !ok {
+		return fmt.Errorf("camera %q not found in watch set", cameraID)
+	}
+
+	if _, err := unix.InotifyRmWatch(inFd, uint32(wd)); err != nil {
+		return fmt.Errorf("failed to remove watch: %v", err)
+	}
+
+	delete(ws.wdToRule, wd)
+	delete(ws.cameraToWd, cameraID)
+	return nil
+}
+
+func (ws *WatchSet) GetRule(wd int32) (config.WatcherRule, bool) {
+	rule, ok := ws.wdToRule[wd]
+	return rule, ok
+}
+
+func (w *Watcher) addWatches(inFd int, rules []config.WatcherRule, mask uint32) (*WatchSet, error) {
+	ws := WatchSet{
+		wdToRule:   make(map[int32]config.WatcherRule, len(rules)),
+		cameraToWd: make(map[string]int32, len(rules)),
+	}
+
+	for _, rule := range rules {
+		if err := ws.Add(inFd, rule, mask); err != nil {
+			// 하나의 rule이 실패해도 전체 종료 : 무시하고 나머지 rule 실행
+			return nil, err
+		}
 	}
 
 	return &ws, nil
@@ -124,6 +165,13 @@ func (w *Watcher) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	// Store in watcher for dynamic add/remove
+	w.mu.Lock()
+	w.inFd = inFd
+	w.watchSet = watchSet
+	w.mask = mask
+	w.mu.Unlock()
 
 	wakeFd, err := unix.Eventfd(0, unix.EFD_CLOEXEC|unix.EFD_NONBLOCK)
 	if err != nil {
@@ -185,11 +233,13 @@ func (w *Watcher) Run(ctx context.Context) error {
 				}
 
 				parseInotifyEvents(buf[:n], func(ev unix.InotifyEvent, name string) {
-					idx, ok := watchSet.wdToIdx[ev.Wd]
+					w.mu.Lock()
+					rule, ok := watchSet.GetRule(ev.Wd)
+					w.mu.Unlock()
+
 					if !ok {
 						return
 					}
-					rule := w.cfg.Rules[idx]
 					if err := w.handleEvent(ctx, ev, name, rule); err != nil {
 						log.Printf("handleEvent: %v", err)
 						// return fmt.Errorf("handleEvent: %v", err)
@@ -462,4 +512,49 @@ func checkFileMinSize(path string, minSize int64) (bool, error) {
 		return false, fmt.Errorf("%q size(%d) is too small (<%d)", path, info.Size(), minSize)
 	}
 	return true, nil
+}
+
+// AddWatch dynamically adds a new watch rule to the running watcher.
+// This is called when a camera is enabled via API.
+func (w *Watcher) AddWatch(ctx context.Context, rule config.WatcherRule) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.watchSet == nil {
+		return fmt.Errorf("watcher not running")
+	}
+
+	// Prepare target directory
+	if rule.TargetDir == "" {
+		return fmt.Errorf("target_dir is empty")
+	}
+	if err := os.MkdirAll(rule.TargetDir, 0o755); err != nil {
+		return fmt.Errorf("failed to mkdir target_dir=%q: %v", rule.TargetDir, err)
+	}
+
+	// Add to inotify watch set
+	if err := w.watchSet.Add(w.inFd, rule, w.mask); err != nil {
+		return err
+	}
+
+	log.Printf("[watcher] added watch: camera_id=%s source_dir=%s", rule.CameraID, rule.SourceDir)
+	return nil
+}
+
+// RemoveWatch dynamically removes a watch rule from the running watcher.
+// This is called when a camera is disabled via API.
+func (w *Watcher) RemoveWatch(ctx context.Context, cameraID string) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.watchSet == nil {
+		return fmt.Errorf("watcher not running")
+	}
+
+	if err := w.watchSet.Remove(w.inFd, cameraID); err != nil {
+		return err
+	}
+
+	log.Printf("[watcher] removed watch: camera_id=%s", cameraID)
+	return nil
 }

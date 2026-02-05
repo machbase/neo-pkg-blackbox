@@ -28,7 +28,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 // New creates a new Server.
-func New(cfg config.ServerConfig, machbase *db.Machbase, ffmpegBinary ...string) (*Server, error) {
+func New(cfg config.ServerConfig, machbase *db.Machbase, watcher Watcher, ffmpegBinary ...string) (*Server, error) {
 	cfg.ApplyDefaults()
 
 	if cfg.BaseDir == "" {
@@ -52,7 +52,7 @@ func New(cfg config.ServerConfig, machbase *db.Machbase, ffmpegBinary ...string)
 	s := &Server{
 		cfg:     cfg,
 		engine:  engine,
-		handler: NewHandler(machbase, cfg.DataDir, cfg.MvsDir, cfg.CameraDir, ffBinary),
+		handler: NewHandler(machbase, watcher, cfg.DataDir, cfg.MvsDir, cfg.CameraDir, ffBinary),
 	}
 	s.routes()
 
@@ -108,11 +108,12 @@ func (s *Server) routes() {
 	api.POST("/ai/result", s.handler.UploadAIResult)
 	// ==================================================================
 
-	// Static files - use NoRoute to avoid conflict with API routes
-	fileServer := http.FileServer(http.Dir(s.cfg.BaseDir))
-	s.engine.NoRoute(func(c *gin.Context) {
-		fileServer.ServeHTTP(c.Writer, c.Request)
+	// Web UI - Serve static frontend
+	webDir := filepath.Join(s.cfg.BaseDir, "web")
+	s.engine.GET("/", func(c *gin.Context) {
+		c.File(filepath.Join(webDir, "index.html"))
 	})
+	s.engine.StaticFS("/web", http.Dir(webDir))
 }
 
 // Run starts the server and blocks until ctx is cancelled.

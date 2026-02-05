@@ -1,0 +1,105 @@
+package logger
+
+import (
+	"io"
+	"os"
+	"path/filepath"
+
+	"blackbox-backend/internal/config"
+
+	"github.com/sirupsen/logrus"
+	"gopkg.in/natefinch/lumberjack.v2"
+)
+
+var Log *logrus.Logger
+
+// Init initializes the global logger with logrus and lumberjack
+func Init(cfg config.LogConfig) error {
+	Log = logrus.New()
+
+	// Set log level
+	level, err := logrus.ParseLevel(cfg.Level)
+	if err != nil {
+		level = logrus.InfoLevel
+	}
+	Log.SetLevel(level)
+
+	// Set log format
+	if cfg.Format == "json" {
+		Log.SetFormatter(&logrus.JSONFormatter{
+			TimestampFormat: "2006-01-02 15:04:05",
+		})
+	} else {
+		Log.SetFormatter(&logrus.TextFormatter{
+			FullTimestamp:   true,
+			TimestampFormat: "2006-01-02 15:04:05",
+		})
+	}
+
+	// Set output
+	var writers []io.Writer
+
+	switch cfg.Output {
+	case "stdout":
+		writers = append(writers, os.Stdout)
+	case "file":
+		// Create log directory if not exists
+		logDir := filepath.Dir(cfg.File.Filename)
+		if err := os.MkdirAll(logDir, 0755); err != nil {
+			return err
+		}
+
+		// Setup lumberjack for log rotation
+		fileWriter := &lumberjack.Logger{
+			Filename:   cfg.File.Filename,
+			MaxSize:    cfg.File.MaxSize,
+			MaxBackups: cfg.File.MaxBackups,
+			MaxAge:     cfg.File.MaxAge,
+			Compress:   cfg.File.Compress,
+		}
+		writers = append(writers, fileWriter)
+	case "both":
+		writers = append(writers, os.Stdout)
+
+		// Create log directory if not exists
+		logDir := filepath.Dir(cfg.File.Filename)
+		if err := os.MkdirAll(logDir, 0755); err != nil {
+			return err
+		}
+
+		fileWriter := &lumberjack.Logger{
+			Filename:   cfg.File.Filename,
+			MaxSize:    cfg.File.MaxSize,
+			MaxBackups: cfg.File.MaxBackups,
+			MaxAge:     cfg.File.MaxAge,
+			Compress:   cfg.File.Compress,
+		}
+		writers = append(writers, fileWriter)
+	default:
+		writers = append(writers, os.Stdout)
+	}
+
+	// Set multi writer
+	if len(writers) > 1 {
+		Log.SetOutput(io.MultiWriter(writers...))
+	} else if len(writers) == 1 {
+		Log.SetOutput(writers[0])
+	}
+
+	Log.Info("Logger initialized successfully")
+	return nil
+}
+
+// GetLogger returns the global logger instance
+func GetLogger() *logrus.Logger {
+	if Log == nil {
+		// Fallback to default logger if not initialized
+		Log = logrus.New()
+		Log.SetLevel(logrus.InfoLevel)
+		Log.SetFormatter(&logrus.TextFormatter{
+			FullTimestamp:   true,
+			TimestampFormat: "2006-01-02 15:04:05",
+		})
+	}
+	return Log
+}

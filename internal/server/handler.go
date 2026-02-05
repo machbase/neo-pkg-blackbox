@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"blackbox-backend/internal/config"
 	"blackbox-backend/internal/db"
 
 	"github.com/gin-gonic/gin"
@@ -50,29 +51,37 @@ type cameraProcess struct {
 
 // Handler handles API requests.
 type Handler struct {
-	machbase     *db.Machbase
-	dataDir      string
-	mvsDir       string
-	cameraDir    string
-	ffmpegBinary string
-	prefixCache  map[string]string
-	fpsCache     map[string]*int
-	cacheMu      sync.RWMutex
-	processes    map[string]*cameraProcess
-	processMu    sync.Mutex
+	machbase      *db.Machbase
+	watcher       Watcher // watcher interface for dynamic watch management
+	dataDir       string
+	mvsDir        string
+	cameraDir     string
+	ffmpegBinary  string
+	prefixCache   map[string]string
+	fpsCache      map[string]*int
+	cacheMu       sync.RWMutex
+	processes     map[string]*cameraProcess
+	processMu     sync.Mutex
 	edgeState     map[string]bool                  // EDGE_ONLY 이전 상태: "camera_id.rule_id" → prev_result
 	edgeMu        sync.Mutex
 	cameraConfigs map[string]*CameraCreateRequest // camera_id → full camera config 캐시
 	configMu      sync.RWMutex
 }
 
+// Watcher interface for adding/removing file system watches dynamically
+type Watcher interface {
+	AddWatch(ctx context.Context, rule config.WatcherRule) error
+	RemoveWatch(ctx context.Context, cameraID string) error
+}
+
 // NewHandler creates a new Handler.
-func NewHandler(machbase *db.Machbase, dataDir, mvsDir, cameraDir, ffmpegBinary string) *Handler {
+func NewHandler(machbase *db.Machbase, watcher Watcher, dataDir, mvsDir, cameraDir, ffmpegBinary string) *Handler {
 	if dataDir == "" {
 		dataDir = "/data"
 	}
 	h := &Handler{
 		machbase:      machbase,
+		watcher:       watcher,
 		dataDir:       dataDir,
 		mvsDir:        mvsDir,
 		cameraDir:     cameraDir,

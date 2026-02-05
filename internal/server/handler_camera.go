@@ -1,6 +1,7 @@
 package server
 
 import (
+	"blackbox-backend/internal/config"
 	"blackbox-backend/internal/db"
 	"blackbox-backend/internal/dsl"
 	"context"
@@ -628,12 +629,38 @@ func (h *Handler) EnableCamera(c *gin.Context) {
 	h.processes[id] = &cameraProcess{cmd: cmd, cancel: cancel, startedAt: time.Now()}
 	h.processMu.Unlock()
 
+	// watcher에 rule 추가 (ffmpeg가 생성하는 파일을 감시)
+	targetDir := filepath.Join(h.dataDir, id, "out")
+	rule := config.WatcherRule{
+		CameraID:  id,
+		SourceDir: outputDir,
+		TargetDir: targetDir,
+		Ext:       ".m4s",
+	}
+
+	if err := h.watcher.AddWatch(c.Request.Context(), rule); err != nil {
+		// watcher 추가 실패 시 ffmpeg 중지 (rollback)
+		log.Printf("[camera:%s] failed to add watcher, stopping ffmpeg: %v", id, err)
+		cancel()
+		h.processMu.Lock()
+		delete(h.processes, id)
+		h.processMu.Unlock()
+		errorResponse(c, tick, http.StatusInternalServerError, fmt.Sprintf("failed to add watcher: %v", err))
+		return
+	}
+
 	// 프로세스 종료 감시 (비동기)
 	go func() {
 		err := cmd.Wait()
 		h.processMu.Lock()
 		delete(h.processes, id)
 		h.processMu.Unlock()
+
+		// ffmpeg 종료 시 watcher도 제거
+		if err := h.watcher.RemoveWatch(context.Background(), id); err != nil {
+			log.Printf("[camera:%s] failed to remove watcher: %v", id, err)
+		}
+
 		if err != nil {
 			log.Printf("[camera:%s] ffmpeg exited: %v", id, err)
 		} else {
@@ -664,7 +691,14 @@ func (h *Handler) DisableCamera(c *gin.Context) {
 	delete(h.processes, id)
 	h.processMu.Unlock()
 
+	// ffmpeg 중지
 	proc.cancel()
+
+	// watcher 제거 (ffmpeg 종료 go routine에서도 제거하지만, 명시적으로 제거)
+	if err := h.watcher.RemoveWatch(c.Request.Context(), id); err != nil {
+		log.Printf("[camera:%s] failed to remove watcher: %v", id, err)
+		// 에러가 발생해도 계속 진행 (이미 제거되었을 수 있음)
+	}
 
 	successResponse(c, tick, map[string]string{
 		"name":   id,
