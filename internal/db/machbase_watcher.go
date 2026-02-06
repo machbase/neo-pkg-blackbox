@@ -2,11 +2,16 @@ package db
 
 import "context"
 
-func (m *Machbase) InsertChunk(ctx context.Context, name string, utcTime int64, length int64, epoch int64) error {
-	table := "blackbox3"
-	columns := []string{"name", "time", "length", "value"}
+// InsertChunk inserts a video chunk record into the specified table.
+// - table: table name (e.g., "blackbox3")
+// - name: camera ID
+// - utcTimeNs: UTC timestamp in nanoseconds (actual observation time)
+// - lengthSeconds: chunk duration in seconds (double)
+// - chunkPath: file path to the video chunk
+func (m *Machbase) InsertChunk(ctx context.Context, table string, name string, utcTimeNs int64, lengthSeconds float64, chunkPath string) error {
+	columns := []string{"name", "time", "value", "chunk_path"}
 
-	rows := [][]any{{name, utcTime, length, epoch}}
+	rows := [][]any{{name, utcTimeNs, lengthSeconds, chunkPath}}
 	if err := m.WriteRows(ctx, table, columns, rows); err != nil {
 		return err
 	}

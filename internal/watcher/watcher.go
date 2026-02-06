@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -64,9 +63,12 @@ func (ws *WatchSet) RemoveAll(inFd int) {
 }
 
 func (ws *WatchSet) Add(inFd int, rule config.WatcherRule, mask uint32) error {
-	// 이미 해당 카메라가 등록되어 있는지 확인
-	if wd, exists := ws.cameraToWd[rule.CameraID]; exists {
-		return fmt.Errorf("camera %q already watching (wd=%d)", rule.CameraID, wd)
+	// 이미 해당 카메라가 등록되어 있으면 먼저 제거
+	if oldWd, exists := ws.cameraToWd[rule.CameraID]; exists {
+		// 기존 watch 제거
+		_, _ = unix.InotifyRmWatch(inFd, uint32(oldWd))
+		delete(ws.wdToRule, oldWd)
+		delete(ws.cameraToWd, rule.CameraID)
 	}
 
 	wd, err := unix.InotifyAddWatch(inFd, rule.SourceDir, mask)
@@ -441,14 +443,16 @@ func (w *Watcher) proecessChunk(ctx context.Context, rule config.WatcherRule, na
 		return fmt.Errorf("move into date dir %q -> %q: %v", tmpDestPath, finalPath, err)
 	}
 
-	startNs := int64(math.Round(timing.StartPTS * 1e9))
-	lengthNs := int64(math.Round(timing.Length * 1e9))
+	// observedEpochMs를 나노초로 변환 (실제 관찰 시간)
+	utcTimeNs := observedEpochMs * 1_000_000 // ms -> ns
 
-	if err := w.neo.InsertChunk(ctx, rule.CameraID, startNs, lengthNs, observedEpochMs); err != nil {
+	// DB에 청크 정보 저장: 카메라별 테이블명, 카메라ID, 실제 UTC 시간, 길이(초), 파일 경로
+	table := strings.ToUpper(rule.CameraID) // 카메라 ID를 테이블명으로 사용
+	if err := w.neo.InsertChunk(ctx, table, rule.CameraID, utcTimeNs, timing.Length, finalPath); err != nil {
 		return fmt.Errorf("InsertChunk: %v", err)
 	}
 
-	logger.GetLogger().Infof("[CHUNK] %s -> %s start=%.6f len=%.6f epochMs=%d", name, finalPath, timing.StartPTS, timing.Length, observedEpochMs)
+	logger.GetLogger().Infof("[CHUNK] %s -> %s start=%.6f len=%.6f epochMs=%d path=%s", name, finalPath, timing.StartPTS, timing.Length, observedEpochMs, finalPath)
 
 	return nil
 }

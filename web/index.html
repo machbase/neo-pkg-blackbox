@@ -175,6 +175,15 @@
             background: #218838;
         }
 
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
         .response-area {
             margin-top: 30px;
         }
@@ -396,6 +405,24 @@
                         <label>Detect Objects (쉼표로 구분)</label>
                         <input type="text" id="create-objects" placeholder="person,car,truck,bus" />
                     </div>
+                    <div class="form-group">
+                        <label>FFmpeg Options (JSON Array)</label>
+                        <textarea id="create-ffmpeg-options" rows="16">[
+  {"k": "rtsp_transport", "v": "tcp"},
+  {"k": "rtsp_flags", "v": "prefer_tcp"},
+  {"k": "buffer_size", "v": "10485760"},
+  {"k": "max_delay", "v": "5000000"},
+  {"k": "probesize", "v": "10000000"},
+  {"k": "analyzeduration", "v": "10000000"},
+  {"k": "use_wallclock_as_timestamps", "v": "1"},
+  {"k": "c:v", "v": "copy"},
+  {"k": "f", "v": "dash"},
+  {"k": "seg_duration", "v": "5"},
+  {"k": "use_template", "v": "0"},
+  {"k": "use_timeline", "v": "0"}
+]</textarea>
+                        <p class="help-text">FFmpeg 옵션을 JSON 배열 형식으로 입력하세요. 수정하거나 비워두면 빈 배열로 전송됩니다.</p>
+                    </div>
                     <button class="btn btn-success" onclick="createCamera()">생성하기</button>
                     <div class="response-area" id="camera-create-response"></div>
                 </div>
@@ -500,6 +527,11 @@
                     <div class="form-group">
                         <label>Time (Unix nanoseconds) *</label>
                         <input type="text" id="chunkinfo-time" placeholder="1640000000000000000" />
+                        <div style="margin-top: 5px;">
+                            <button class="btn btn-success" onclick="setCurrentTime('chunkinfo-time')">현재 시간</button>
+                            <button class="btn btn-secondary" onclick="adjustTime('chunkinfo-time', -5)">- 5초</button>
+                            <button class="btn btn-secondary" onclick="adjustTime('chunkinfo-time', 5)">+ 5초</button>
+                        </div>
                     </div>
                     <button class="btn btn-primary" onclick="getChunkInfo()">조회하기</button>
                     <div class="response-area" id="chunk-info-response"></div>
@@ -507,16 +539,24 @@
 
                 <!-- Chunk Download Section -->
                 <div class="api-section" id="chunk-download">
-                    <h2><span class="method-badge method-get">GET</span> 청크 다운로드</h2>
+                    <h2><span class="method-badge method-get">GET</span> 청크 영상 조회</h2>
+                    <p class="help-text">지정된 시간의 청크 영상을 조회하고 재생합니다.</p>
                     <div class="form-group">
                         <label>Tag Name (Camera ID) *</label>
                         <input type="text" id="chunk-tagname" placeholder="camera1" />
                     </div>
                     <div class="form-group">
                         <label>Time (Unix nanoseconds) *</label>
-                        <input type="text" id="chunk-time" placeholder="1640000000000000000" />
+                        <input type="text" id="chunk-time" placeholder="1640000000000000000 또는 2026-02-06T10:18:34.19" />
+                        <div style="margin-top: 5px;">
+                            <button class="btn btn-success" onclick="setCurrentTime('chunk-time')">현재 시간</button>
+                            <button class="btn btn-secondary" onclick="adjustTime('chunk-time', -5)">- 5초</button>
+                            <button class="btn btn-secondary" onclick="adjustTime('chunk-time', 5)">+ 5초</button>
+                            <button class="btn btn-primary" onclick="convertToNanoseconds('chunk-time')">변환</button>
+                        </div>
+                        <p class="help-text" style="margin-top: 5px;">ISO 시간 형식(예: 2026-02-06T10:18:34.19)을 입력 후 "변환" 버튼을 누르면 Unix 나노초로 변환됩니다.</p>
                     </div>
-                    <button class="btn btn-primary" onclick="downloadChunk()">다운로드하기</button>
+                    <button class="btn btn-primary" onclick="downloadChunk()">조회하기</button>
                     <div class="response-area" id="chunk-download-response"></div>
                 </div>
 
@@ -534,10 +574,20 @@
                     <div class="form-group">
                         <label>Start Time (Unix nanoseconds)</label>
                         <input type="text" id="rollup-start" placeholder="1640000000000000000" />
+                        <div style="margin-top: 5px;">
+                            <button class="btn btn-secondary" onclick="adjustTime('rollup-start', -5)">- 5초</button>
+                            <button class="btn btn-secondary" onclick="adjustTime('rollup-start', 5)">+ 5초</button>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>End Time (Unix nanoseconds)</label>
                         <input type="text" id="rollup-end" placeholder="1640100000000000000" />
+                        <div style="margin-top: 5px;">
+                            <button class="btn btn-success" onclick="setCurrentTime('rollup-start', 'rollup-end')">현재 시간</button>
+                            <button class="btn btn-secondary" onclick="adjustTime('rollup-end', -5)">- 5초</button>
+                            <button class="btn btn-secondary" onclick="adjustTime('rollup-end', 5)">+ 5초</button>
+                        </div>
+                        <p class="help-text">현재 시간 버튼을 클릭하면 Start Time은 현재 시간, End Time은 5초 후로 자동 설정됩니다.</p>
                     </div>
                     <button class="btn btn-primary" onclick="getRollupInfo()">조회하기</button>
                     <div class="response-area" id="rollup-info-response"></div>
@@ -675,6 +725,71 @@
             });
         });
 
+        // Set current time in nanoseconds
+        function setCurrentTime(startInputId, endInputId = null) {
+            const nowNs = Date.now() * 1_000_000; // milliseconds to nanoseconds
+            document.getElementById(startInputId).value = nowNs;
+
+            if (endInputId) {
+                // End time = start time + 5 seconds (5,000,000,000 nanoseconds)
+                const endNs = nowNs + (5 * 1_000_000_000);
+                document.getElementById(endInputId).value = endNs;
+            }
+        }
+
+        function adjustTime(inputId, seconds) {
+            const input = document.getElementById(inputId);
+            const currentValue = input.value.trim();
+
+            if (!currentValue) {
+                alert('시간 값을 먼저 입력해주세요.');
+                return;
+            }
+
+            const currentNs = parseInt(currentValue, 10);
+            if (isNaN(currentNs)) {
+                alert('올바른 시간 값이 아닙니다.');
+                return;
+            }
+
+            // Adjust by seconds (convert seconds to nanoseconds)
+            const adjustmentNs = seconds * 1_000_000_000;
+            const newNs = currentNs + adjustmentNs;
+
+            input.value = newNs;
+        }
+
+        function convertToNanoseconds(inputId) {
+            const input = document.getElementById(inputId);
+            const currentValue = input.value.trim();
+
+            if (!currentValue) {
+                alert('변환할 시간 값을 먼저 입력해주세요.');
+                return;
+            }
+
+            // Check if it's already a nanosecond timestamp (all digits)
+            if (/^\d+$/.test(currentValue)) {
+                alert('이미 Unix 타임스탬프 형식입니다.');
+                return;
+            }
+
+            // Try to parse as ISO date string
+            try {
+                const date = new Date(currentValue);
+                if (isNaN(date.getTime())) {
+                    alert('올바른 날짜 형식이 아닙니다.\n예: 2026-02-06T10:18:34.19');
+                    return;
+                }
+
+                // Convert to nanoseconds (Date.getTime() returns milliseconds)
+                const nanoseconds = date.getTime() * 1_000_000;
+                input.value = nanoseconds;
+            } catch (error) {
+                alert('날짜 변환 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
         function showResponse(elementId, data, isError = false) {
             const container = document.getElementById(elementId);
             container.innerHTML = `
@@ -743,20 +858,36 @@ ${JSON.stringify(data, null, 2)}
         }
 
         async function createCamera() {
-            const body = {
-                table: document.getElementById('create-table').value,
-                name: document.getElementById('create-name').value,
-                desc: document.getElementById('create-desc').value,
-                rtsp_url: document.getElementById('create-rtsp').value,
-                output_dir: document.getElementById('create-output-dir').value,
-                output_name: document.getElementById('create-output-name').value || 'manifest.mpd',
-                detect_objects: document.getElementById('create-objects').value.split(',').map(s => s.trim()).filter(Boolean),
-                save_objects: true,
-                ffmpeg_options: []
-            };
-
             showLoading('camera-create-response');
             try {
+                const ffmpegOptionsStr = document.getElementById('create-ffmpeg-options').value.trim();
+                let ffmpegOptions = [];
+
+                // Parse ffmpeg_options if provided
+                if (ffmpegOptionsStr) {
+                    try {
+                        ffmpegOptions = JSON.parse(ffmpegOptionsStr);
+                        if (!Array.isArray(ffmpegOptions)) {
+                            throw new Error('FFmpeg options must be an array');
+                        }
+                    } catch (e) {
+                        showResponse('camera-create-response', { error: 'Invalid FFmpeg options JSON: ' + e.message }, true);
+                        return;
+                    }
+                }
+
+                const body = {
+                    table: document.getElementById('create-table').value,
+                    name: document.getElementById('create-name').value,
+                    desc: document.getElementById('create-desc').value,
+                    rtsp_url: document.getElementById('create-rtsp').value,
+                    output_dir: document.getElementById('create-output-dir').value,
+                    output_name: document.getElementById('create-output-name').value || 'manifest.mpd',
+                    detect_objects: document.getElementById('create-objects').value.split(',').map(s => s.trim()).filter(Boolean),
+                    save_objects: true,
+                    ffmpeg_options: ffmpegOptions
+                };
+
                 const data = await apiRequest(`${API_BASE}/camera`, 'POST', body);
                 showResponse('camera-create-response', data);
             } catch (error) {
@@ -872,10 +1003,67 @@ ${JSON.stringify(data, null, 2)}
         async function downloadChunk() {
             const tagname = document.getElementById('chunk-tagname').value;
             const time = document.getElementById('chunk-time').value;
-            const url = `${API_BASE}/v_get_chunk?tagname=${tagname}&time=${time}`;
+            const initUrl = `${API_BASE}/v_get_chunk?tagname=${tagname}&time=init`;
+            const chunkUrl = `${API_BASE}/v_get_chunk?tagname=${tagname}&time=${time}`;
 
-            showResponse('chunk-download-response', { message: '다운로드 시작...', url });
-            window.open(url, '_blank');
+            showLoading('chunk-download-response');
+
+            try {
+                // Fetch init segment (required for fMP4 playback)
+                const initResponse = await fetch(initUrl);
+                if (!initResponse.ok) {
+                    const errorText = await initResponse.text();
+                    let errorData;
+                    try {
+                        errorData = JSON.parse(errorText);
+                    } catch {
+                        errorData = { error: 'Init segment not found: ' + errorText };
+                    }
+                    showResponse('chunk-download-response', errorData, true);
+                    return;
+                }
+
+                // Fetch chunk segment
+                const chunkResponse = await fetch(chunkUrl);
+                if (!chunkResponse.ok) {
+                    const errorText = await chunkResponse.text();
+                    let errorData;
+                    try {
+                        errorData = JSON.parse(errorText);
+                    } catch {
+                        errorData = { error: errorText };
+                    }
+                    showResponse('chunk-download-response', errorData, true);
+                    return;
+                }
+
+                // Combine init + chunk for fMP4 playback
+                const initBuffer = await initResponse.arrayBuffer();
+                const chunkBuffer = await chunkResponse.arrayBuffer();
+                const combined = new Uint8Array(initBuffer.byteLength + chunkBuffer.byteLength);
+                combined.set(new Uint8Array(initBuffer), 0);
+                combined.set(new Uint8Array(chunkBuffer), initBuffer.byteLength);
+
+                const blob = new Blob([combined], { type: 'video/mp4' });
+                const blobUrl = URL.createObjectURL(blob);
+
+                const container = document.getElementById('chunk-download-response');
+                container.innerHTML = `
+                    <h3>영상 재생</h3>
+                    <div style="margin-top: 10px;">
+                        <video controls autoplay style="width: 100%; max-width: 800px; border-radius: 8px; background: #000;">
+                            <source src="${blobUrl}" type="video/mp4">
+                            브라우저가 비디오 재생을 지원하지 않습니다.
+                        </video>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button class="btn btn-success" onclick="window.open('${chunkUrl}', '_blank')">파일로 저장</button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('chunk-download-response').innerHTML = ''">닫기</button>
+                    </div>
+                `;
+            } catch (error) {
+                showResponse('chunk-download-response', { error: error.message }, true);
+            }
         }
 
         async function getRollupInfo() {

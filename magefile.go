@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -341,4 +342,98 @@ func createZip(sourceDir, targetFile string) error {
 
 	// Use zip command on Unix-like systems
 	return sh.RunV("zip", "-r", targetFile, base, "-C", dir)
+}
+
+// loadEnv reads .env file and returns a map of key-value pairs
+func loadEnv() (map[string]string, error) {
+	env := make(map[string]string)
+
+	file, err := os.Open(".env")
+	if err != nil {
+		return env, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Parse KEY=VALUE
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			// Remove quotes if present
+			value = strings.Trim(value, `"'`)
+			env[key] = value
+		}
+	}
+
+	return env, scanner.Err()
+}
+
+// Dp (Deploy Package) deploys the package to remote server via scp
+func Dp() error {
+	// Run package first
+	if err := Package(); err != nil {
+		return fmt.Errorf("failed to package: %w", err)
+	}
+
+	// Load .env file
+	env, err := loadEnv()
+	if err != nil {
+		fmt.Printf("Warning: failed to load .env file: %v\n", err)
+		fmt.Println("Using default values...")
+		env = make(map[string]string)
+	}
+
+	// Find the created archive
+	packageName := fmt.Sprintf("%s-%s-%s", binaryName, runtime.GOOS, runtime.GOARCH)
+	archiveName := packageName + ".tar.gz"
+	if runtime.GOOS == "windows" {
+		archiveName = packageName + ".zip"
+	}
+	archivePath := filepath.Join(distDir, archiveName)
+
+	// Check if archive exists
+	if _, err := os.Stat(archivePath); os.IsNotExist(err) {
+		return fmt.Errorf("package file not found: %s", archivePath)
+	}
+
+	// Get remote server details from .env or use defaults
+	remoteUser := getEnvOrDefault(env, "DEPLOY_USER", "eleven")
+	remoteHost := getEnvOrDefault(env, "DEPLOY_HOST", "192.168.0.87")
+	remotePath := getEnvOrDefault(env, "DEPLOY_PATH", "/blackbox/be/pkg")
+
+	remoteTarget := fmt.Sprintf("%s@%s:%s/", remoteUser, remoteHost, remotePath)
+
+	fmt.Printf("\n📦 Deploying %s to %s\n", archiveName, remoteTarget)
+	fmt.Println("Please enter password when prompted...")
+	fmt.Println()
+
+	// Run scp command (interactive for password)
+	cmd := exec.Command("scp", archivePath, remoteTarget)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to scp: %w", err)
+	}
+
+	fmt.Printf("\n✓ Deployed successfully to %s\n", remoteTarget)
+	return nil
+}
+
+// getEnvOrDefault returns env value or default if not found
+func getEnvOrDefault(env map[string]string, key, defaultValue string) string {
+	if value, ok := env[key]; ok && value != "" {
+		return value
+	}
+	return defaultValue
 }

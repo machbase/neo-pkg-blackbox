@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -199,12 +200,23 @@ func sanitizeTag(value string) (string, error) {
 }
 
 // parseTimeToken parses a time token string.
+// Supports: Unix nanoseconds (integer), ISO date strings, or "now".
 func parseTimeToken(raw string) (time.Time, error) {
 	candidate := strings.TrimSpace(raw)
 	if strings.ToLower(candidate) == "now" {
 		return time.Now(), nil
 	}
 
+	// Try parsing as Unix nanoseconds (integer)
+	if nsInt, err := strconv.ParseInt(candidate, 10, 64); err == nil {
+		if nsInt > 0 {
+			sec := nsInt / 1_000_000_000
+			nsec := nsInt % 1_000_000_000
+			return time.Unix(sec, nsec), nil
+		}
+	}
+
+	// Fall back to ISO date string parsing
 	normalized := strings.ReplaceAll(candidate, "T", " ")
 	normalized = strings.TrimSuffix(normalized, "Z")
 
@@ -279,7 +291,7 @@ func (h *Handler) getCameraFPS(c *gin.Context, camera string) *int {
 
 // initPath returns the path to the init segment.
 func (h *Handler) initPath(camera string) string {
-	return filepath.Join(h.dataDir, camera, "init-stream0.m4s")
+	return filepath.Join(h.dataDir, camera, "out", "init-stream0.m4s")
 }
 
 // chunkPath returns the path to a chunk segment.
@@ -287,8 +299,8 @@ func (h *Handler) chunkPath(c *gin.Context, camera string, chunkNumber int64) st
 	prefix := h.resolvePrefix(c, camera)
 	t := time.UnixMilli(chunkNumber).UTC()
 	dateDir := t.Format("20060102")
-	filename := prefix + "0-" + time.UnixMilli(chunkNumber).UTC().Format("20060102150405") + ".m4s"
-	return filepath.Join(h.dataDir, camera, dateDir, filename)
+	filename := prefix + "0-" + time.UnixMilli(chunkNumber).UTC().Format("20060202150405") + ".m4s"
+	return filepath.Join(h.dataDir, camera, "out", dateDir, filename)
 }
 
 // readChunkFile reads a chunk file.

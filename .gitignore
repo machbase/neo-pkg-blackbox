@@ -6,3 +6,4 @@ ffprobe
 dist
 tmp
 *.txt
+.env

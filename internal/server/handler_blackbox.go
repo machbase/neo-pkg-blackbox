@@ -177,11 +177,7 @@ func (h *Handler) GetChunkInfo(c *gin.Context) {
 	resp := GetChunkInfoResponse{
 		Camera: camera,
 		Time:   formatTime(record.EntryTime),
-		Length: record.Length,
-	}
-	if record.Value != 0 {
-		sign := record.Value
-		resp.Sign = &sign
+		Length: int64(record.Length), // float64 -> int64 변환
 	}
 
 	successResponse(c, tick, resp)
@@ -237,10 +233,10 @@ func (h *Handler) GetChunk(c *gin.Context) {
 			return
 		}
 
-		path := h.chunkPath(c, camera, record.Value)
-		chunkData, err = os.ReadFile(path)
+		// chunk_path를 직접 사용
+		chunkData, err = os.ReadFile(record.ChunkPath)
 		if err != nil {
-			errorResponse(c, tick, http.StatusNotFound, fmt.Sprintf("Segment not found for camera '%s'", camera))
+			errorResponse(c, tick, http.StatusNotFound, fmt.Sprintf("Segment not found for camera '%s' at path '%s'", camera, record.ChunkPath))
 			return
 		}
 	}
