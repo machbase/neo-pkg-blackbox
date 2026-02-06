@@ -11,24 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func errorResponse(c *gin.Context, tick time.Time, status int, reason string) {
-	c.JSON(status, Response{
-		Success: false,
-		Reason:  reason,
-		Elapse:  time.Since(tick).String(),
-		Data:    nil,
-	})
-}
-
-func successResponse(c *gin.Context, tick time.Time, data any) {
-	c.JSON(http.StatusOK, Response{
-		Success: true,
-		Reason:  "success",
-		Elapse:  time.Since(tick).String(),
-		Data:    data,
-	})
-}
-
 // GetCameras handles GET /api/cameras.
 // Returns list of cameras from config files in cameraDir.
 func (h *Handler) GetCameras(c *gin.Context) {

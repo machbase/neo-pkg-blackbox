@@ -7,3 +7,5 @@ dist
 tmp
 *.txt
 .env
+.log
+.md

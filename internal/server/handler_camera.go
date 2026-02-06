@@ -181,12 +181,7 @@ func (h *Handler) CreateMvsCamera(c *gin.Context) {
 
 	var req MvsCameraCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Reason:  "bad request parameter",
-			Elapse:  time.Since(tick).String(),
-			Data:    nil,
-		})
+		errorResponse(c, tick, http.StatusBadRequest, "bad request parameter")
 		return
 	}
 
@@ -205,45 +200,25 @@ func (h *Handler) CreateMvsCamera(c *gin.Context) {
 
 	mvsJSON, err := json.MarshalIndent(mvsData, "", "  ")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, Response{
-			Success: false,
-			Reason:  "failed to marshal mvs data",
-			Elapse:  time.Since(tick).String(),
-			Data:    nil,
-		})
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to marshal mvs data")
 		return
 	}
 
 	if err := os.MkdirAll(h.mvsDir, 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, Response{
-			Success: false,
-			Reason:  "failed to create mvs directory",
-			Elapse:  time.Since(tick).String(),
-			Data:    nil,
-		})
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to create mvs directory")
 		return
 	}
 
 	mvsFileName := fmt.Sprintf("%s_%d_%d.mvs", req.CameraID, req.ModelID, time.Now().Unix())
 	mvsPath := filepath.Join(h.mvsDir, mvsFileName)
 	if err := os.WriteFile(mvsPath, mvsJSON, 0644); err != nil {
-		c.JSON(http.StatusInternalServerError, Response{
-			Success: false,
-			Reason:  "failed to write mvs file",
-			Elapse:  time.Since(tick).String(),
-			Data:    nil,
-		})
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to write mvs file")
 		return
 	}
 
-	c.JSON(http.StatusOK, Response{
-		Success: true,
-		Reason:  "success",
-		Elapse:  time.Since(tick).String(),
-		Data: CreateMvsCameraResponse{
-			CameraID: req.CameraID,
-			MvsPath:  mvsPath,
-		},
+	successResponse(c, tick, CreateMvsCameraResponse{
+		CameraID: req.CameraID,
+		MvsPath:  mvsPath,
 	})
 }
 
@@ -269,35 +244,20 @@ func (h *Handler) UploadAIResult(c *gin.Context) {
 	var req AIResultRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.GetLogger().Errorf("upload AI result: %v", err)
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Reason:  "bad request parameter",
-			Elapse:  time.Since(tick).String(),
-			Data:    nil,
-		})
+		errorResponse(c, tick, http.StatusBadRequest, "bad request parameter")
 		return
 	}
 
 	// timestamp: milliseconds → nanoseconds
 	if req.Timestamp <= 0 {
-		c.JSON(http.StatusBadRequest, Response{
-			Success: false,
-			Reason:  "invalid timestamp: must be positive milliseconds",
-			Elapse:  time.Since(tick).String(),
-			Data:    nil,
-		})
+		errorResponse(c, tick, http.StatusBadRequest, "invalid timestamp: must be positive milliseconds")
 		return
 	}
 	tsNano := req.Timestamp * 1000000 // milliseconds to nanoseconds
 
 	config := h.getCameraConfig(req.CameraID)
 	if config == nil {
-		c.JSON(http.StatusNotFound, Response{
-			Success: false,
-			Reason:  "camera config not found",
-			Elapse:  time.Since(tick).String(),
-			Data:    nil,
-		})
+		errorResponse(c, tick, http.StatusNotFound, "camera config not found")
 		return
 	}
 
@@ -316,12 +276,7 @@ func (h *Handler) UploadAIResult(c *gin.Context) {
 		}
 
 		if err := h.machbase.InsertCameraLogs(c.Request.Context(), config.Table+"_log", logs); err != nil {
-			c.JSON(http.StatusInternalServerError, Response{
-				Success: false,
-				Reason:  "failed to insert camera logs",
-				Elapse:  time.Since(tick).String(),
-				Data:    nil,
-			})
+			errorResponse(c, tick, http.StatusInternalServerError, "failed to insert camera logs")
 			return
 		}
 	}
@@ -329,15 +284,7 @@ func (h *Handler) UploadAIResult(c *gin.Context) {
 	// 2) EventLog: 캐시된 event rules로 DSL 평가 → {table}_event 저장
 	_ = h.evaluateEventRules(c.Request.Context(), config.Table, tsNano, req.Detections, config.EventRule)
 
-	c.JSON(http.StatusOK, Response{
-		Success: true,
-		Reason:  "success",
-		Elapse:  time.Since(tick).String(),
-		Data:    nil,
-		// Data: CreateMvsEventResponse{
-		// CameraID: req.CameraID,
-		// },
-	})
+	successResponse(c, tick, nil)
 }
 
 // evaluateEventRules evaluates all enabled event rules against detection counts.
@@ -563,8 +510,9 @@ func (h *Handler) DeleteCamera(c *gin.Context) {
 // TestCameraConnection handles POST /api/camera/test.
 // Tests RTSP URL connection.
 func (h *Handler) TestCameraConnection(c *gin.Context) {
+	tick := time.Now()
 	// TODO: implement
-	c.JSON(http.StatusNotImplemented, ErrorResponse{Error: "not implemented"})
+	errorResponse(c, tick, http.StatusNotImplemented, "not implemented")
 }
 
 // EnableCamera handles POST /api/camera/:id/enable.

@@ -183,9 +183,24 @@ func (h *Handler) removeCameraConfigCache(cameraID string) {
 	h.configMu.Unlock()
 }
 
-// sendError sends an error response.
-func (h *Handler) sendError(c *gin.Context, status int, message string) {
-	c.JSON(status, ErrorResponse{Error: message})
+// errorResponse sends a standardized error response.
+func errorResponse(c *gin.Context, tick time.Time, status int, reason string) {
+	c.JSON(status, Response{
+		Success: false,
+		Reason:  reason,
+		Elapse:  time.Since(tick).String(),
+		Data:    nil,
+	})
+}
+
+// successResponse sends a standardized success response.
+func successResponse(c *gin.Context, tick time.Time, data any) {
+	c.JSON(http.StatusOK, Response{
+		Success: true,
+		Reason:  "success",
+		Elapse:  time.Since(tick).String(),
+		Data:    data,
+	})
 }
 
 // sanitizeTag validates and sanitizes a tag value.
