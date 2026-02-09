@@ -20,12 +20,13 @@ Response:
 Response:
 ```json
 {
-    "models": [
-        {
-            "id": 0,                      // int - 모델 ID
-            "name": "string"              // 모델 이름 (예: "yolov8n")
-        }
-    ]
+    "models": {
+        "0": "yolov8n.onnx",          // map[string]string - 모델 ID: 모델 파일명
+        "1": "yolov8s.onnx",
+        "2": "yolov8m.onnx",
+        "3": "yolov8l.onnx",
+        "4": "yolov8x.onnx"
+    }
 }
 ```
 
@@ -33,13 +34,17 @@ Response:
 
 ## GET /api/detect_objects
 
-감지 가능한 객체 목록 조회 (COCO 80 클래스, 하드코딩)
+감지 가능한 객체 목록 조회 (하드코딩)
 
 Response:
 ```json
 {
-    "detect_objects": ["string"]          // []string - 객체 이름 목록
-                                          // 예: ["person", "bicycle", "car", ...]
+    "detect_objects": [                   // []string - 객체 이름 목록 (4종)
+        "person",
+        "car",
+        "truck",
+        "bus"
+    ]
 }
 ```
 
@@ -65,6 +70,15 @@ Request:
                                           // 예: ["person", "car", "truck", "bus"]
 
     "save_objects": false,                // bool - {table}_log 테이블에 감지 데이터 저장 여부
+
+    "ffmpeg_command": "string",           // ffmpeg 실행 경로 (선택)
+                                          // 빈 값 시 서버 기본값 사용
+    "output_dir": "string",               // ffmpeg 출력 디렉토리 (선택)
+                                          // 빈 값 또는 상대경로 시: {data_dir}/{name}/in
+                                          // 절대경로(/로 시작) 시: 그대로 사용
+    "archive_dir": "string",              // watcher 아카이브 디렉토리 (선택)
+                                          // 빈 값 또는 상대경로 시: {data_dir}/{name}/out
+                                          // 절대경로(/로 시작) 시: 그대로 사용
 
     "ffmpeg_options": [                   // []ReqKV - FFmpeg 옵션 배열
         { "k": "string", "v": "string" }  // k: 옵션명, v: 옵션값 (optional)
@@ -101,6 +115,10 @@ Response:
     "detect_objects": ["string"],         // []string - 감지할 객체 목록
     "save_objects": false,                // bool - 감지 데이터 저장 여부
 
+    "ffmpeg_command": "string",           // ffmpeg 실행 경로
+    "output_dir": "string",               // ffmpeg 출력 디렉토리
+    "archive_dir": "string",              // watcher 아카이브 디렉토리
+
     "ffmpeg_options": [                   // []ReqKV - FFmpeg 옵션 배열
         { "k": "string", "v": "string" }
     ],
@@ -136,6 +154,10 @@ Request:
     "detect_objects": ["string"],         // []string - 감지할 객체 목록
     "save_objects": false,                // bool - 감지 데이터 저장 여부
 
+    "ffmpeg_command": "string",           // ffmpeg 실행 경로
+    "output_dir": "string",               // ffmpeg 출력 디렉토리
+    "archive_dir": "string",              // watcher 아카이브 디렉토리
+
     "ffmpeg_options": [                   // []ReqKV - FFmpeg 옵션 배열
         { "k": "string", "v": "string" }
     ]
@@ -159,6 +181,42 @@ Response:
 ```json
 {
     "name": "string"                      // 삭제된 카메라 이름
+}
+```
+
+---
+
+## GET /api/camera/:id/detect_objects
+
+특정 카메라의 감지 객체 목록 조회
+
+Response:
+```json
+{
+    "camera_id": "string",                // 카메라 ID
+    "detect_objects": ["string"]          // []string - 감지 객체 목록
+}
+```
+
+---
+
+## POST /api/camera/:id/detect_objects
+
+특정 카메라의 감지 객체 목록 수정
+
+Request:
+```json
+{
+    "detect_objects": ["string"]          // required - []string - 감지 객체 목록
+                                          // 예: ["person", "car", "truck", "bus"]
+}
+```
+
+Response:
+```json
+{
+    "camera_id": "string",                // 카메라 ID
+    "detect_objects": ["string"]          // 업데이트된 감지 객체 목록
 }
 ```
 
@@ -354,6 +412,45 @@ Response:
     "rule_id": "string"                   // 삭제된 규칙 ID
 }
 ```
+
+---
+
+## GET /api/camera_events?camera_id={camera_id}&start_time={start_time}&end_time={end_time}
+
+카메라 이벤트 로그 조회 ({table}_event 테이블)
+
+Query Parameters:
+- `camera_id`: required - 카메라 ID
+- `start_time`: required - 시작 시간 (Unix nanoseconds)
+- `end_time`: required - 종료 시간 (Unix nanoseconds)
+
+Response:
+```json
+{
+    "events": [                           // 이벤트 로그 배열
+        {
+            "name": "string",             // 이벤트 이름 (camera_id.rule_id 형식)
+            "time": "string",             // 이벤트 발생 시간 (RFC3339 형식)
+            "value": 0.0,                 // float64 - 이벤트 코드
+                                          // 2: MATCH, 1: TRIGGER, 0: RESOLVE, -1: ERROR
+            "value_label": "string",      // 이벤트 레이블
+                                          // "MATCH" | "TRIGGER" | "RESOLVE" | "ERROR"
+            "expression_text": "string",  // DSL 표현식
+            "used_counts_snapshot": "string",  // JSON 문자열 - 평가 시 사용된 카운트 스냅샷
+                                          // 예: "{\"person\":3,\"car\":2}"
+            "camera_id": "string",        // 카메라 ID
+            "rule_id": "string"           // 규칙 ID
+        }
+    ]
+}
+```
+
+Note:
+- **ALL_MATCHES 모드**: 조건이 참일 때마다 `value=2` (MATCH) 기록
+- **EDGE_ONLY 모드**: 상태 변화 시점만 기록
+  - false → true: `value=1` (TRIGGER)
+  - true → false: `value=0` (RESOLVE)
+- **ERROR**: DSL 평가 오류 시 `value=-1` (ERROR), EDGE_ONLY 상태는 변경 안 됨
 
 ---
 

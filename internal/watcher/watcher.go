@@ -134,9 +134,11 @@ type RuleFailure struct {
 func (w *Watcher) prepare() ([]WatcherRule, []RuleFailure) {
 	// 카메라 설정 파일들을 읽어서 WatcherRule 생성
 	type CameraConfig struct {
-		Enabled bool   `json:"enabled"`
-		Table   string `json:"table"`
-		Name    string `json:"name"`
+		Enabled    bool   `json:"enabled"`
+		Table      string `json:"table"`
+		Name       string `json:"name"`
+		OutputDir  string `json:"output_dir"`
+		ArchiveDir string `json:"archive_dir"`
 	}
 
 	active := make([]WatcherRule, 0)
@@ -174,12 +176,21 @@ func (w *Watcher) prepare() ([]WatcherRule, []RuleFailure) {
 			continue
 		}
 
-		// WatcherRule 생성 - derive paths from DataDir
+		// WatcherRule 생성 - use absolute path if provided, otherwise use DataDir/{camera}/in|out
+		sourceDir := config.OutputDir
+		if sourceDir == "" || !filepath.IsAbs(sourceDir) {
+			sourceDir = filepath.Join(w.DataDir, config.Name, "in")
+		}
+		targetDir := config.ArchiveDir
+		if targetDir == "" || !filepath.IsAbs(targetDir) {
+			targetDir = filepath.Join(w.DataDir, config.Name, "out")
+		}
+
 		rule := WatcherRule{
 			CameraID:  config.Name,
 			Table:     config.Table,
-			SourceDir: filepath.Join(w.DataDir, config.Name, "in"),
-			TargetDir: filepath.Join(w.DataDir, config.Name, "out"),
+			SourceDir: sourceDir,
+			TargetDir: targetDir,
 			Ext:       ".mpd",
 		}
 

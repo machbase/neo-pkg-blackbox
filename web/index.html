@@ -322,6 +322,8 @@
                 <div class="nav-section">
                     <h3>Database</h3>
                     <div class="nav-item" data-section="tables-list">테이블 목록</div>
+                    <div class="nav-item" data-section="models-list">모델 목록</div>
+                    <div class="nav-item" data-section="detect-objects-list">감지 객체 목록</div>
                 </div>
 
                 <div class="nav-section">
@@ -331,6 +333,8 @@
                     <div class="nav-item" data-section="camera-get">카메라 조회</div>
                     <div class="nav-item" data-section="camera-update">카메라 수정</div>
                     <div class="nav-item" data-section="camera-delete">카메라 삭제</div>
+                    <div class="nav-item" data-section="camera-detect-objects-get">감지 객체 조회</div>
+                    <div class="nav-item" data-section="camera-detect-objects-update">감지 객체 수정</div>
                 </div>
 
                 <div class="nav-section">
@@ -361,6 +365,7 @@
                     <div class="nav-item" data-section="event-rule-create">규칙 생성</div>
                     <div class="nav-item" data-section="event-rule-update">규칙 수정</div>
                     <div class="nav-item" data-section="event-rule-delete">규칙 삭제</div>
+                    <div class="nav-item" data-section="camera-events">이벤트 로그 조회</div>
                 </div>
 
                 <div class="nav-section">
@@ -376,6 +381,22 @@
                     <p class="help-text">Machbase TAG 테이블 목록을 조회합니다. (_event, _log 테이블 제외)</p>
                     <button class="btn btn-primary" onclick="getTables()">조회하기</button>
                     <div class="response-area" id="tables-list-response"></div>
+                </div>
+
+                <!-- Models List Section -->
+                <div class="api-section" id="models-list">
+                    <h2><span class="method-badge method-get">GET</span> 모델 목록</h2>
+                    <p class="help-text">사용 가능한 AI 모델 목록을 조회합니다. (하드코딩)</p>
+                    <button class="btn btn-primary" onclick="getModels()">조회하기</button>
+                    <div class="response-area" id="models-list-response"></div>
+                </div>
+
+                <!-- Detect Objects List Section -->
+                <div class="api-section" id="detect-objects-list">
+                    <h2><span class="method-badge method-get">GET</span> 감지 객체 목록</h2>
+                    <p class="help-text">감지 가능한 객체 목록을 조회합니다. (하드코딩)</p>
+                    <button class="btn btn-primary" onclick="getDetectObjects()">조회하기</button>
+                    <div class="response-area" id="detect-objects-list-response"></div>
                 </div>
 
                 <!-- Camera List Section -->
@@ -468,6 +489,34 @@
                     </div>
                     <button class="btn btn-danger" onclick="deleteCamera()">삭제하기</button>
                     <div class="response-area" id="camera-delete-response"></div>
+                </div>
+
+                <!-- Camera Detect Objects Get Section -->
+                <div class="api-section" id="camera-detect-objects-get">
+                    <h2><span class="method-badge method-get">GET</span> 카메라 감지 객체 조회</h2>
+                    <p class="help-text">특정 카메라에 설정된 감지 객체 목록을 조회합니다.</p>
+                    <div class="form-group">
+                        <label>Camera ID *</label>
+                        <input type="text" id="detect-objects-get-camera" placeholder="camera1" />
+                    </div>
+                    <button class="btn btn-primary" onclick="getCameraDetectObjects()">조회하기</button>
+                    <div class="response-area" id="camera-detect-objects-get-response"></div>
+                </div>
+
+                <!-- Camera Detect Objects Update Section -->
+                <div class="api-section" id="camera-detect-objects-update">
+                    <h2><span class="method-badge method-post">POST</span> 카메라 감지 객체 수정</h2>
+                    <p class="help-text">특정 카메라의 감지 객체 목록을 수정합니다.</p>
+                    <div class="form-group">
+                        <label>Camera ID *</label>
+                        <input type="text" id="detect-objects-update-camera" placeholder="camera1" />
+                    </div>
+                    <div class="form-group">
+                        <label>Detect Objects (쉼표로 구분) *</label>
+                        <input type="text" id="detect-objects-update-list" placeholder="person,car,truck,bus" />
+                    </div>
+                    <button class="btn btn-success" onclick="updateCameraDetectObjects()">수정하기</button>
+                    <div class="response-area" id="camera-detect-objects-update-response"></div>
                 </div>
 
                 <!-- Camera Enable Section -->
@@ -684,6 +733,30 @@
                     <div class="response-area" id="event-rule-delete-response"></div>
                 </div>
 
+                <!-- Camera Events Section -->
+                <div class="api-section" id="camera-events">
+                    <h2><span class="method-badge method-get">GET</span> 이벤트 로그 조회</h2>
+                    <p class="help-text">카메라 이벤트 테이블({table}_event)을 시간 범위로 조회합니다.</p>
+                    <div class="form-group">
+                        <label>Camera ID *</label>
+                        <input type="text" id="camera-events-camera" placeholder="camera1" />
+                    </div>
+                    <div class="form-group">
+                        <label>Start Time (Unix nanoseconds) *</label>
+                        <input type="text" id="camera-events-start" placeholder="1640000000000000000" />
+                    </div>
+                    <div class="form-group">
+                        <label>End Time (Unix nanoseconds) *</label>
+                        <input type="text" id="camera-events-end" placeholder="1640100000000000000" />
+                        <div style="margin-top: 5px;">
+                            <button class="btn btn-success" onclick="setCurrentTime('camera-events-start', 'camera-events-end')">현재 시간</button>
+                        </div>
+                        <p class="help-text">현재 시간 버튼: Start = 현재, End = 5초 후</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="getCameraEvents()">조회하기</button>
+                    <div class="response-area" id="camera-events-response"></div>
+                </div>
+
                 <!-- AI Result Section -->
                 <div class="api-section" id="ai-result">
                     <h2><span class="method-badge method-post">POST</span> AI 결과 업로드</h2>
@@ -855,6 +928,27 @@ ${JSON.stringify(data, null, 2)}
             }
         }
 
+        // Models & Detect Objects Functions
+        async function getModels() {
+            showLoading('models-list-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/models`);
+                showResponse('models-list-response', data);
+            } catch (error) {
+                showResponse('models-list-response', { error: error.message }, true);
+            }
+        }
+
+        async function getDetectObjects() {
+            showLoading('detect-objects-list-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/detect_objects`);
+                showResponse('detect-objects-list-response', data);
+            } catch (error) {
+                showResponse('detect-objects-list-response', { error: error.message }, true);
+            }
+        }
+
         // Camera Management Functions
         async function getCameras() {
             showLoading('cameras-list-response');
@@ -952,6 +1046,33 @@ ${JSON.stringify(data, null, 2)}
                 showResponse('camera-delete-response', data);
             } catch (error) {
                 showResponse('camera-delete-response', { error: error.message }, true);
+            }
+        }
+
+        // Camera Detect Objects Functions
+        async function getCameraDetectObjects() {
+            const id = document.getElementById('detect-objects-get-camera').value;
+            showLoading('camera-detect-objects-get-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/camera/${id}/detect_objects`);
+                showResponse('camera-detect-objects-get-response', data);
+            } catch (error) {
+                showResponse('camera-detect-objects-get-response', { error: error.message }, true);
+            }
+        }
+
+        async function updateCameraDetectObjects() {
+            const id = document.getElementById('detect-objects-update-camera').value;
+            const objectsStr = document.getElementById('detect-objects-update-list').value;
+            const objects = objectsStr.split(',').map(s => s.trim()).filter(Boolean);
+
+            showLoading('camera-detect-objects-update-response');
+            try {
+                const body = { detect_objects: objects };
+                const data = await apiRequest(`${API_BASE}/camera/${id}/detect_objects`, 'POST', body);
+                showResponse('camera-detect-objects-update-response', data);
+            } catch (error) {
+                showResponse('camera-detect-objects-update-response', { error: error.message }, true);
             }
         }
 
@@ -1193,6 +1314,21 @@ ${JSON.stringify(data, null, 2)}
                 showResponse('event-rule-delete-response', data);
             } catch (error) {
                 showResponse('event-rule-delete-response', { error: error.message }, true);
+            }
+        }
+
+        // Camera Events Function
+        async function getCameraEvents() {
+            const cameraId = document.getElementById('camera-events-camera').value;
+            const startTime = document.getElementById('camera-events-start').value;
+            const endTime = document.getElementById('camera-events-end').value;
+
+            showLoading('camera-events-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/camera_events?camera_id=${cameraId}&start_time=${startTime}&end_time=${endTime}`);
+                showResponse('camera-events-response', data);
+            } catch (error) {
+                showResponse('camera-events-response', { error: error.message }, true);
             }
         }
 

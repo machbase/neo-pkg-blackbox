@@ -1,6 +1,7 @@
 package server
 
 import (
+	"blackbox-backend/internal/logger"
 	"fmt"
 	"net/http"
 	"os"
@@ -25,6 +26,7 @@ func (h *Handler) GetCameras(c *gin.Context) {
 			})
 			return
 		}
+		logger.GetLogger().Errorf("GetCameras: failed to read camera directory %q: %v", h.cameraDir, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "Failed to read camera directory")
 		return
 	}
@@ -59,6 +61,7 @@ func (h *Handler) GetTables(c *gin.Context) {
 
 	tables, err := h.machbase.ListTables(c.Request.Context())
 	if err != nil {
+		logger.GetLogger().Errorf("GetTables: failed to list tables: %v", err)
 		errorResponse(c, tick, http.StatusInternalServerError, fmt.Sprintf("failed to list tables: %v", err))
 		return
 	}
@@ -213,6 +216,7 @@ func (h *Handler) GetChunkInfo(c *gin.Context) {
 	tableName := config.Table
 	record, err := h.machbase.ChunkRecordForTime(ctx, tableName, cameraID, timestamp)
 	if err != nil {
+		logger.GetLogger().Errorf("GetChunkInfo[%s]: failed to fetch chunk info at time %s: %v", cameraID, req.Time, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "Failed to fetch chunk info")
 		return
 	}
@@ -266,6 +270,7 @@ func (h *Handler) GetChunk(c *gin.Context) {
 		path := h.initPath(cameraID)
 		chunkData, err = os.ReadFile(path)
 		if err != nil {
+			logger.GetLogger().Errorf("GetChunk[%s]: failed to read init file %q: %v", cameraID, path, err)
 			errorResponse(c, tick, http.StatusNotFound, fmt.Sprintf("Segment not found for camera '%s'", cameraID))
 			return
 		}
@@ -280,6 +285,7 @@ func (h *Handler) GetChunk(c *gin.Context) {
 		tableName := config.Table
 		record, err := h.machbase.ChunkRecordForTime(ctx, tableName, cameraID, timestamp)
 		if err != nil {
+			logger.GetLogger().Errorf("GetChunk[%s]: failed to fetch chunk info at time %s: %v", cameraID, timeToken, err)
 			errorResponse(c, tick, http.StatusInternalServerError, "Failed to fetch chunk info")
 			return
 		}
@@ -292,6 +298,7 @@ func (h *Handler) GetChunk(c *gin.Context) {
 		// chunk_path를 직접 사용
 		chunkData, err = os.ReadFile(record.ChunkPath)
 		if err != nil {
+			logger.GetLogger().Errorf("GetChunk[%s]: failed to read chunk file %q: %v", cameraID, record.ChunkPath, err)
 			errorResponse(c, tick, http.StatusNotFound, fmt.Sprintf("Segment not found for camera '%s' at path '%s'", cameraID, record.ChunkPath))
 			return
 		}
@@ -343,6 +350,7 @@ func (h *Handler) GetCameraRollup(c *gin.Context) {
 	tableName := config.Table
 	rows, err := h.machbase.CameraRollup(ctx, tableName, cameraID, minutes, req.StartTime, req.EndTime)
 	if err != nil {
+		logger.GetLogger().Errorf("GetCameraRollup[%s]: failed to fetch rollup data (start=%d, end=%d, minutes=%d): %v", cameraID, req.StartTime, req.EndTime, minutes, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "Failed to fetch rollup data")
 		return
 	}
@@ -373,6 +381,95 @@ func (h *Handler) GetCameraRollup(c *gin.Context) {
 }
 
 // utcNanosecondsToTime converts UTC nanoseconds to time.Time.
+// GetCameraEvents handles GET /api/camera_events.
+// {table}_event 테이블에서 시간 범위로 이벤트 조회.
+func (h *Handler) GetCameraEvents(c *gin.Context) {
+	tick := time.Now()
+
+	cameraID := c.Query("camera_id")
+	if cameraID == "" {
+		errorResponse(c, tick, http.StatusBadRequest, "camera_id is required")
+		return
+	}
+
+	config := h.getCameraConfig(cameraID)
+	if config == nil {
+		errorResponse(c, tick, http.StatusNotFound, fmt.Sprintf("camera '%s' not found", cameraID))
+		return
+	}
+
+	startTimeStr := c.Query("start_time")
+	endTimeStr := c.Query("end_time")
+	if startTimeStr == "" || endTimeStr == "" {
+		errorResponse(c, tick, http.StatusBadRequest, "start_time and end_time are required (nanoseconds)")
+		return
+	}
+
+	var startNs, endNs int64
+	if _, err := fmt.Sscanf(startTimeStr, "%d", &startNs); err != nil {
+		errorResponse(c, tick, http.StatusBadRequest, "invalid start_time")
+		return
+	}
+	if _, err := fmt.Sscanf(endTimeStr, "%d", &endNs); err != nil {
+		errorResponse(c, tick, http.StatusBadRequest, "invalid end_time")
+		return
+	}
+
+	if startNs >= endNs {
+		errorResponse(c, tick, http.StatusBadRequest, "start_time must be earlier than end_time")
+		return
+	}
+
+	ctx := c.Request.Context()
+	rows, err := h.machbase.QueryCameraEvents(ctx, config.Table, startNs, endNs)
+	if err != nil {
+		logger.GetLogger().Errorf("GetCameraEvents[%s]: failed to query events (start=%d, end=%d): %v", cameraID, startNs, endNs, err)
+		errorResponse(c, tick, http.StatusInternalServerError, fmt.Sprintf("failed to query events: %v", err))
+		return
+	}
+
+	type eventRow struct {
+		Time               string  `json:"time"`
+		Value              float64 `json:"value"`
+		ValueLabel         string  `json:"value_label"`
+		ExpressionText     string  `json:"expression_text"`
+		UsedCountsSnapshot string  `json:"used_counts_snapshot"`
+		CameraID           string  `json:"camera_id"`
+		RuleID             string  `json:"rule_id"`
+	}
+
+	events := make([]eventRow, len(rows))
+	for i, r := range rows {
+		label := ""
+		switch r.Value {
+		case 2:
+			label = "MATCH"
+		case 1:
+			label = "TRIGGER"
+		case 0:
+			label = "RESOLVE"
+		case -1:
+			label = "ERROR"
+		}
+		events[i] = eventRow{
+			Time:               formatTime(r.Time),
+			Value:              r.Value,
+			ValueLabel:         label,
+			ExpressionText:     r.ExpressionText,
+			UsedCountsSnapshot: r.UsedCountsSnapshot,
+			CameraID:           r.CameraID,
+			RuleID:             r.RuleID,
+		}
+	}
+
+	successResponse(c, tick, map[string]any{
+		"camera_id": cameraID,
+		"table":     config.Table + "_event",
+		"count":     len(events),
+		"events":    events,
+	})
+}
+
 func utcNanosecondsToTime(ns int64) time.Time {
 	sec := ns / 1_000_000_000
 	nsec := ns % 1_000_000_000

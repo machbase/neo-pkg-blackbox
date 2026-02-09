@@ -48,6 +48,10 @@ type CameraCreateRequest struct {
 	DetectObjects []string `json:"detect_objects"` // ex) ["person", "car", "truck", "bus"]
 	SaveObjects   bool     `json:"save_objects"`   // {camera}_log 테이블에 데이터 저장 여부
 
+	FFmpegCommand string `json:"ffmpeg_command"` // ffmpeg 실행 경로
+	OutputDir     string `json:"output_dir"`     // ffmpeg 청크 출력 디렉토리
+	ArchiveDir    string `json:"archive_dir"`    // watcher가 파일을 이동시키는 디렉토리
+
 	FFmpegOptions []ReqKV `json:"ffmpeg_options"` // 프론트에 전달 필요
 
 	EventRule []EventRule // request에서는 안 받지만, 별도로 eventRule을 받는 API가 있고 CameraCreateRequest의 구조체는 파일에 json으로 저장됨
@@ -67,43 +71,59 @@ func (h *Handler) CreateCamera(c *gin.Context) {
 
 	var req CameraCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.GetLogger().Errorf("CreateCamera: failed to bind JSON: %v", err)
 		errorResponse(c, tick, http.StatusBadRequest, "bad request parameter")
 		return
 	}
 
 	// Validate name (used as table name)
 	if req.Name == "" {
+		logger.GetLogger().Errorf("CreateCamera: camera name is required")
 		errorResponse(c, tick, http.StatusBadRequest, "name is required")
 		return
 	}
 
 	// 1. Save camera config as JSON file
 	if err := os.MkdirAll(h.cameraDir, 0755); err != nil {
+		logger.GetLogger().Errorf("CreateCamera[%s]: failed to create camera directory: %v", req.Name, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to create camera directory")
 		return
 	}
 
+	// Set default paths if not provided or if relative path (not starting with /)
+	if req.OutputDir == "" || !filepath.IsAbs(req.OutputDir) {
+		req.OutputDir = filepath.Join(h.dataDir, req.Name, "in")
+	}
+	if req.ArchiveDir == "" || !filepath.IsAbs(req.ArchiveDir) {
+		req.ArchiveDir = filepath.Join(h.dataDir, req.Name, "out")
+	}
+	if req.FFmpegCommand == "" {
+		req.FFmpegCommand = h.ffmpegBinary
+	}
+
 	// Create camera data directories
-	inDir := filepath.Join(h.dataDir, req.Name, "in")
-	outDir := filepath.Join(h.dataDir, req.Name, "out")
-	if err := os.MkdirAll(inDir, 0755); err != nil {
-		errorResponse(c, tick, http.StatusInternalServerError, "failed to create input directory")
+	if err := os.MkdirAll(req.OutputDir, 0755); err != nil {
+		logger.GetLogger().Errorf("CreateCamera[%s]: failed to create output directory %q: %v", req.Name, req.OutputDir, err)
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to create output directory")
 		return
 	}
-	if err := os.MkdirAll(outDir, 0755); err != nil {
-		errorResponse(c, tick, http.StatusInternalServerError, "failed to create output directory")
+	if err := os.MkdirAll(req.ArchiveDir, 0755); err != nil {
+		logger.GetLogger().Errorf("CreateCamera[%s]: failed to create archive directory %q: %v", req.Name, req.ArchiveDir, err)
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to create archive directory")
 		return
 	}
 
 	req.Enabled = true
 	cameraJSON, err := json.MarshalIndent(req, "", "  ")
 	if err != nil {
+		logger.GetLogger().Errorf("CreateCamera[%s]: failed to marshal camera config: %v", req.Name, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to marshal camera config")
 		return
 	}
 
 	cameraPath := filepath.Join(h.cameraDir, req.Name+".json")
 	if err := os.WriteFile(cameraPath, cameraJSON, 0644); err != nil {
+		logger.GetLogger().Errorf("CreateCamera[%s]: failed to write camera config file %q: %v", req.Name, cameraPath, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to write camera config file")
 		return
 	}
@@ -112,12 +132,14 @@ func (h *Handler) CreateCamera(c *gin.Context) {
 	if err := h.machbase.CreateCameraTables(c.Request.Context(), req.Table); err != nil {
 		// Rollback: delete the config file
 		_ = os.Remove(cameraPath)
+		logger.GetLogger().Errorf("CreateCamera[%s]: failed to create camera tables for table %q: %v", req.Name, req.Table, err)
 		errorResponse(c, tick, http.StatusInternalServerError, fmt.Sprintf("failed to create camera tables: %v", err))
 		return
 	}
 
 	// 3. Save MVS config file (for detection program)
 	if err := os.MkdirAll(h.mvsDir, 0755); err != nil {
+		logger.GetLogger().Errorf("CreateCamera[%s]: failed to create mvs directory %q: %v", req.Name, h.mvsDir, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to create mvs directory")
 		return
 	}
@@ -132,6 +154,7 @@ func (h *Handler) CreateCamera(c *gin.Context) {
 
 	mvsJSON, err := json.MarshalIndent(mvs, "", "  ")
 	if err != nil {
+		logger.GetLogger().Errorf("CreateCamera[%s]: failed to marshal mvs data: %v", req.Name, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to marshal mvs data")
 		return
 	}
@@ -139,6 +162,7 @@ func (h *Handler) CreateCamera(c *gin.Context) {
 	mvsFileName := fmt.Sprintf("%s_%d_%d.mvs", mvs.CameraID, mvs.ModelID, time.Now().Unix())
 	mvsPath := filepath.Join(h.mvsDir, mvsFileName)
 	if err := os.WriteFile(mvsPath, mvsJSON, 0644); err != nil {
+		logger.GetLogger().Errorf("CreateCamera[%s]: failed to write mvs file %q: %v", req.Name, mvsPath, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to write mvs file")
 		return
 	}
@@ -183,6 +207,7 @@ func (h *Handler) CreateMvsCamera(c *gin.Context) {
 
 	var req MvsCameraCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.GetLogger().Errorf("CreateMvsCamera: failed to bind JSON: %v", err)
 		errorResponse(c, tick, http.StatusBadRequest, "bad request parameter")
 		return
 	}
@@ -202,11 +227,13 @@ func (h *Handler) CreateMvsCamera(c *gin.Context) {
 
 	mvsJSON, err := json.MarshalIndent(mvsData, "", "  ")
 	if err != nil {
+		logger.GetLogger().Errorf("CreateMvsCamera[%s]: failed to marshal mvs data: %v", req.CameraID, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to marshal mvs data")
 		return
 	}
 
 	if err := os.MkdirAll(h.mvsDir, 0755); err != nil {
+		logger.GetLogger().Errorf("CreateMvsCamera[%s]: failed to create mvs directory %q: %v", req.CameraID, h.mvsDir, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to create mvs directory")
 		return
 	}
@@ -214,6 +241,7 @@ func (h *Handler) CreateMvsCamera(c *gin.Context) {
 	mvsFileName := fmt.Sprintf("%s_%d_%d.mvs", req.CameraID, req.ModelID, time.Now().Unix())
 	mvsPath := filepath.Join(h.mvsDir, mvsFileName)
 	if err := os.WriteFile(mvsPath, mvsJSON, 0644); err != nil {
+		logger.GetLogger().Errorf("CreateMvsCamera[%s]: failed to write mvs file %q: %v", req.CameraID, mvsPath, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to write mvs file")
 		return
 	}
@@ -384,15 +412,18 @@ func (h *Handler) GetCamera(c *gin.Context) {
 	data, err := os.ReadFile(cameraPath)
 	if err != nil {
 		if os.IsNotExist(err) {
+			logger.GetLogger().Warnf("GetCamera[%s]: camera config file not found: %s", id, cameraPath)
 			errorResponse(c, tick, http.StatusNotFound, fmt.Sprintf("camera '%s' not found", id))
 			return
 		}
+		logger.GetLogger().Errorf("GetCamera[%s]: failed to read camera config: %v", id, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to read camera config")
 		return
 	}
 
 	var camera CameraCreateRequest
 	if err := json.Unmarshal(data, &camera); err != nil {
+		logger.GetLogger().Errorf("GetCamera[%s]: failed to parse camera config: %v", id, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to parse camera config")
 		return
 	}
@@ -412,21 +443,25 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 	data, err := os.ReadFile(cameraPath)
 	if err != nil {
 		if os.IsNotExist(err) {
+			logger.GetLogger().Warnf("UpdateCamera[%s]: camera config file not found: %s", id, cameraPath)
 			errorResponse(c, tick, http.StatusNotFound, fmt.Sprintf("camera '%s' not found", id))
 			return
 		}
+		logger.GetLogger().Errorf("UpdateCamera[%s]: failed to read camera config: %v", id, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to read camera config")
 		return
 	}
 
 	var existing CameraCreateRequest
 	if err := json.Unmarshal(data, &existing); err != nil {
+		logger.GetLogger().Errorf("UpdateCamera[%s]: failed to parse existing camera config: %v", id, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to parse camera config")
 		return
 	}
 
 	var req CameraCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.GetLogger().Errorf("UpdateCamera[%s]: failed to bind JSON: %v", id, err)
 		errorResponse(c, tick, http.StatusBadRequest, "bad request parameter")
 		return
 	}
@@ -437,11 +472,13 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 
 	cameraJSON, err := json.MarshalIndent(req, "", "  ")
 	if err != nil {
+		logger.GetLogger().Errorf("UpdateCamera[%s]: failed to marshal camera config: %v", id, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to marshal camera config")
 		return
 	}
 
 	if err := os.WriteFile(cameraPath, cameraJSON, 0644); err != nil {
+		logger.GetLogger().Errorf("UpdateCamera[%s]: failed to write camera config file %q: %v", id, cameraPath, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to write camera config file")
 		return
 	}
@@ -456,6 +493,7 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 
 	mvsJSON, err := json.MarshalIndent(mvs, "", "  ")
 	if err != nil {
+		logger.GetLogger().Errorf("UpdateCamera[%s]: failed to marshal mvs data: %v", id, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to marshal mvs data")
 		return
 	}
@@ -463,6 +501,7 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 	mvsFileName := fmt.Sprintf("%s_%d_%d.mvs", id, req.ModelID, time.Now().Unix())
 	mvsPath := filepath.Join(h.mvsDir, mvsFileName)
 	if err := os.WriteFile(mvsPath, mvsJSON, 0644); err != nil {
+		logger.GetLogger().Errorf("UpdateCamera[%s]: failed to write mvs file %q: %v", id, mvsPath, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to write mvs file")
 		return
 	}
@@ -484,11 +523,13 @@ func (h *Handler) DeleteCamera(c *gin.Context) {
 	cameraPath := filepath.Join(h.cameraDir, id+".json")
 
 	if _, err := os.Stat(cameraPath); os.IsNotExist(err) {
+		logger.GetLogger().Warnf("DeleteCamera[%s]: camera config file not found: %s", id, cameraPath)
 		errorResponse(c, tick, http.StatusNotFound, fmt.Sprintf("camera '%s' not found", id))
 		return
 	}
 
 	if err := os.Remove(cameraPath); err != nil {
+		logger.GetLogger().Errorf("DeleteCamera[%s]: failed to delete camera config file %q: %v", id, cameraPath, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to delete camera config file")
 		return
 	}
@@ -515,11 +556,6 @@ func (h *Handler) EnableCamera(c *gin.Context) {
 	tick := time.Now()
 	id := c.Param("id")
 
-	if h.ffmpegBinary == "" {
-		errorResponse(c, tick, http.StatusInternalServerError, "ffmpeg binary not configured")
-		return
-	}
-
 	// 이미 실행 중인지 확인
 	h.processMu.Lock()
 	if _, running := h.processes[id]; running {
@@ -534,45 +570,82 @@ func (h *Handler) EnableCamera(c *gin.Context) {
 	data, err := os.ReadFile(cameraPath)
 	if err != nil {
 		if os.IsNotExist(err) {
+			logger.GetLogger().Errorf("EnableCamera[%s]: camera config file not found: %s", id, cameraPath)
 			errorResponse(c, tick, http.StatusNotFound, fmt.Sprintf("camera '%s' not found", id))
 			return
 		}
+		logger.GetLogger().Errorf("EnableCamera[%s]: failed to read camera config: %v", id, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to read camera config")
 		return
 	}
 
 	var cam CameraCreateRequest
 	if err := json.Unmarshal(data, &cam); err != nil {
+		logger.GetLogger().Errorf("EnableCamera[%s]: failed to parse camera config: %v", id, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to parse camera config")
 		return
 	}
 
 	if cam.RtspURL == "" {
+		logger.GetLogger().Errorf("EnableCamera[%s]: camera has no rtsp_url configured", id)
 		errorResponse(c, tick, http.StatusBadRequest, "camera has no rtsp_url configured")
+		return
+	}
+
+	// Use per-camera paths from config (with fallback to defaults)
+	ffmpegBin := cam.FFmpegCommand
+	if ffmpegBin == "" {
+		ffmpegBin = h.ffmpegBinary
+	}
+	if ffmpegBin == "" {
+		logger.GetLogger().Errorf("EnableCamera[%s]: ffmpeg binary not configured", id)
+		errorResponse(c, tick, http.StatusInternalServerError, "ffmpeg binary not configured")
+		return
+	}
+
+	// Use absolute path if provided, otherwise use data_dir/{camera_id}/in|out
+	outputDir := cam.OutputDir
+	if outputDir == "" || !filepath.IsAbs(outputDir) {
+		outputDir = filepath.Join(h.dataDir, id, "in")
+	}
+
+	archiveDir := cam.ArchiveDir
+	if archiveDir == "" || !filepath.IsAbs(archiveDir) {
+		archiveDir = filepath.Join(h.dataDir, id, "out")
+	}
+
+	// output_dir 준비
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		logger.GetLogger().Errorf("EnableCamera[%s]: failed to create output directory %q: %v", id, outputDir, err)
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to create output directory")
 		return
 	}
 
 	// ffmpeg 인자 빌드
 	args := buildFFmpegArgs(cam)
 
-	// output_dir 준비
-	outputDir := filepath.Join(h.dataDir, id, "in")
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		errorResponse(c, tick, http.StatusInternalServerError, "failed to create output directory")
+	// ffmpeg 로그 파일 생성
+	logFilePath := filepath.Join(h.dataDir, id, id+"_ffmpeg.log")
+	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		logger.GetLogger().Errorf("EnableCamera[%s]: failed to create log file %q: %v", id, logFilePath, err)
+		errorResponse(c, tick, http.StatusInternalServerError, fmt.Sprintf("failed to create log file: %v", err))
 		return
 	}
 
 	// ffmpeg 프로세스 시작
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, h.ffmpegBinary, args...)
+	cmd := exec.CommandContext(ctx, ffmpegBin, args...)
 	cmd.Dir = outputDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
 
-	logger.GetLogger().Infof("[camera:%s] ffmpeg start: %s %s", id, h.ffmpegBinary, strings.Join(args, " "))
+	logger.GetLogger().Infof("[camera:%s] ffmpeg start: %s %s (log: %s)", id, ffmpegBin, strings.Join(args, " "), logFilePath)
 
 	if err := cmd.Start(); err != nil {
 		cancel()
+		logFile.Close()
+		logger.GetLogger().Errorf("EnableCamera[%s]: failed to start ffmpeg: %v", id, err)
 		errorResponse(c, tick, http.StatusInternalServerError, fmt.Sprintf("failed to start ffmpeg: %v", err))
 		return
 	}
@@ -582,12 +655,11 @@ func (h *Handler) EnableCamera(c *gin.Context) {
 	h.processMu.Unlock()
 
 	// watcher에 rule 추가 (ffmpeg가 생성하는 파일을 감시)
-	targetDir := filepath.Join(h.dataDir, id, "out")
 	rule := watcher.WatcherRule{
 		CameraID:  id,
 		Table:     cam.Table,
 		SourceDir: outputDir,
-		TargetDir: targetDir,
+		TargetDir: archiveDir,
 		Ext:       ".m4s",
 	}
 
@@ -605,6 +677,10 @@ func (h *Handler) EnableCamera(c *gin.Context) {
 	// 프로세스 종료 감시 (비동기)
 	go func() {
 		err := cmd.Wait()
+
+		// 로그 파일 닫기
+		logFile.Close()
+
 		h.processMu.Lock()
 		delete(h.processes, id)
 		h.processMu.Unlock()
@@ -812,5 +888,110 @@ func (h *Handler) GetCamerasHealth(c *gin.Context) {
 		"running": runningCount,
 		"stopped": total - runningCount,
 		"cameras": cameras,
+	})
+}
+
+// GetDetectObjectsByCamera handles GET /api/camera/:id/detect_objects.
+// 특정 카메라의 detect_objects 조회.
+func (h *Handler) GetDetectObjectsByCamera(c *gin.Context) {
+	tick := time.Now()
+
+	id := c.Param("id")
+	if id == "" {
+		errorResponse(c, tick, http.StatusBadRequest, "camera id is required")
+		return
+	}
+
+	cameraPath := filepath.Join(h.cameraDir, id+".json")
+	data, err := os.ReadFile(cameraPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.GetLogger().Warnf("GetDetectObjectsByCamera[%s]: camera config file not found: %s", id, cameraPath)
+			errorResponse(c, tick, http.StatusNotFound, fmt.Sprintf("camera '%s' not found", id))
+			return
+		}
+		logger.GetLogger().Errorf("GetDetectObjectsByCamera[%s]: failed to read camera config: %v", id, err)
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to read camera config")
+		return
+	}
+
+	var camera CameraCreateRequest
+	if err := json.Unmarshal(data, &camera); err != nil {
+		logger.GetLogger().Errorf("GetDetectObjectsByCamera[%s]: failed to parse camera config: %v", id, err)
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to parse camera config")
+		return
+	}
+
+	objects := camera.DetectObjects
+	if objects == nil {
+		objects = []string{}
+	}
+
+	successResponse(c, tick, map[string]any{
+		"camera_id":      id,
+		"detect_objects": objects,
+	})
+}
+
+// UpdateDetectObjectsByCamera handles POST /api/camera/:id/detect_objects.
+// 특정 카메라의 detect_objects 수정.
+func (h *Handler) UpdateDetectObjectsByCamera(c *gin.Context) {
+	tick := time.Now()
+
+	id := c.Param("id")
+	if id == "" {
+		errorResponse(c, tick, http.StatusBadRequest, "camera id is required")
+		return
+	}
+
+	var req struct {
+		DetectObjects []string `json:"detect_objects" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.GetLogger().Errorf("UpdateDetectObjectsByCamera[%s]: failed to bind JSON: %v", id, err)
+		errorResponse(c, tick, http.StatusBadRequest, "bad request parameter")
+		return
+	}
+
+	cameraPath := filepath.Join(h.cameraDir, id+".json")
+	data, err := os.ReadFile(cameraPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.GetLogger().Warnf("UpdateDetectObjectsByCamera[%s]: camera config file not found: %s", id, cameraPath)
+			errorResponse(c, tick, http.StatusNotFound, fmt.Sprintf("camera '%s' not found", id))
+			return
+		}
+		logger.GetLogger().Errorf("UpdateDetectObjectsByCamera[%s]: failed to read camera config: %v", id, err)
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to read camera config")
+		return
+	}
+
+	var camera CameraCreateRequest
+	if err := json.Unmarshal(data, &camera); err != nil {
+		logger.GetLogger().Errorf("UpdateDetectObjectsByCamera[%s]: failed to parse camera config: %v", id, err)
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to parse camera config")
+		return
+	}
+
+	camera.DetectObjects = req.DetectObjects
+
+	cameraJSON, err := json.MarshalIndent(camera, "", "  ")
+	if err != nil {
+		logger.GetLogger().Errorf("UpdateDetectObjectsByCamera[%s]: failed to marshal camera config: %v", id, err)
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to marshal camera config")
+		return
+	}
+
+	if err := os.WriteFile(cameraPath, cameraJSON, 0644); err != nil {
+		logger.GetLogger().Errorf("UpdateDetectObjectsByCamera[%s]: failed to write camera config file %q: %v", id, cameraPath, err)
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to write camera config file")
+		return
+	}
+
+	h.refreshCameraConfigCache(id)
+
+	successResponse(c, tick, map[string]any{
+		"camera_id":      id,
+		"detect_objects": req.DetectObjects,
 	})
 }

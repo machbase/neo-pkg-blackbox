@@ -2,7 +2,9 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"time"
 )
 
 // CreateCameraTables creates 3 tables for a camera: {name}, {name}_event, {name}_log
@@ -92,4 +94,57 @@ func (m *Machbase) InsertCameraEvents(ctx context.Context, table string, events 
 		rows[i] = []any{e.Name, e.Time, e.Value, e.ExpressionText, e.UsedCountsSnapshot, e.CameraID, e.RuleID}
 	}
 	return m.WriteRows(ctx, table, columns, rows)
+}
+
+// CameraEventQueryRow represents a queried event row.
+type CameraEventQueryRow struct {
+	Name               string    `json:"name"`
+	Time               time.Time `json:"time"`
+	Value              float64   `json:"value"`
+	ExpressionText     string    `json:"expression_text"`
+	UsedCountsSnapshot string    `json:"used_counts_snapshot"`
+	CameraID           string    `json:"camera_id"`
+	RuleID             string    `json:"rule_id"`
+}
+
+// QueryCameraEvents queries {table}_event with time range.
+func (m *Machbase) QueryCameraEvents(ctx context.Context, table string, startNs, endNs int64) ([]CameraEventQueryRow, error) {
+	safeTable := escapeSQLLiteral(table)
+	sql := fmt.Sprintf(
+		"SELECT name, time, value, expression_text, used_counts_snapshot, camera_id, rule_id "+
+			"FROM %s_event WHERE time BETWEEN %d AND %d ORDER BY time",
+		safeTable, startNs, endNs,
+	)
+
+	resp, err := m.Query(ctx, sql, WithTimeformat("ns"))
+	if err != nil {
+		return nil, err
+	}
+
+	var rows []struct {
+		Name               string `json:"NAME"`
+		Time               int64  `json:"TIME"`
+		Value              float64 `json:"VALUE"`
+		ExpressionText     string `json:"EXPRESSION_TEXT"`
+		UsedCountsSnapshot string `json:"USED_COUNTS_SNAPSHOT"`
+		CameraID           string `json:"CAMERA_ID"`
+		RuleID             string `json:"RULE_ID"`
+	}
+	if err := json.Unmarshal(resp.Data.Rows, &rows); err != nil {
+		return nil, err
+	}
+
+	result := make([]CameraEventQueryRow, len(rows))
+	for i, r := range rows {
+		result[i] = CameraEventQueryRow{
+			Name:               r.Name,
+			Time:               time.Unix(0, r.Time),
+			Value:              r.Value,
+			ExpressionText:     r.ExpressionText,
+			UsedCountsSnapshot: r.UsedCountsSnapshot,
+			CameraID:           r.CameraID,
+			RuleID:             r.RuleID,
+		}
+	}
+	return result, nil
 }

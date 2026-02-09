@@ -91,6 +91,10 @@ func (s *Server) routes() {
 	api.DELETE("/camera/:id", s.handler.DeleteCamera) // O
 	api.POST("/camera/test", s.handler.TestCameraConnection)
 
+	// Camera Detect Objects
+	api.GET("/camera/:id/detect_objects", s.handler.GetDetectObjectsByCamera)
+	api.POST("/camera/:id/detect_objects", s.handler.UpdateDetectObjectsByCamera)
+
 	// Camera Control
 	api.POST("/camera/:id/enable", s.handler.EnableCamera)   // O
 	api.POST("/camera/:id/disable", s.handler.DisableCamera) // O
@@ -98,6 +102,9 @@ func (s *Server) routes() {
 	// Camera Status Monitoring
 	api.GET("/camera/:id/status", s.handler.GetCameraStatus) // O
 	api.GET("/cameras/health", s.handler.GetCamerasHealth)   // O
+
+	// Camera Events Query
+	api.GET("/camera_events", s.handler.GetCameraEvents)
 
 	// ==================================================================
 	// Event Rule

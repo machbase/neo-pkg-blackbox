@@ -261,7 +261,7 @@ func (m *Machbase) ListTables(ctx context.Context) ([]string, error) {
 
 // ChunkRecord represents a chunk record.
 type ChunkRecord struct {
-	ChunkPath string    // 파일 경로
+	ChunkPath string // 파일 경로
 	EntryTime time.Time
 	Length    float64 // 길이 (초)
 }
@@ -272,16 +272,21 @@ type ChunkRecord struct {
 func (m *Machbase) ChunkRecordForTime(ctx context.Context, tableName string, cameraID string, ts time.Time) (*ChunkRecord, error) {
 	safeTable := escapeSQLLiteral(tableName)
 	safeCameraID := escapeSQLLiteral(cameraID)
-	upperNs := ts.UnixNano()
-	endNs := upperNs + 6*1_000_000_000 // +6 seconds
+	tsNs := ts.UnixNano()
 
+	// Find chunk where: chunk_start <= ts <= chunk_end
+	// chunk_start: time
+	// chunk_end: time + (value * 1000000000) where value is length in seconds
 	sql := fmt.Sprintf(
 		"select /*+ SCAN_FORWARD(%s) */ time, value, chunk_path from %s "+
-			"where name = '%s' and time >= %d and time <= %d order by time limit 1",
-		safeTable, safeTable, safeCameraID, upperNs, endNs,
+			"where name = '%s' "+
+			"and time <= %d "+
+			"and %d <= time + (value * 1000000000) "+
+			"order by time limit 1",
+		safeTable, safeTable, safeCameraID, tsNs, tsNs,
 	)
 
-	logger.GetLogger().Debugf("[CHUNK_QUERY] camera=%s, table=%s, start_ns=%d, end_ns=%d", cameraID, safeTable, upperNs, endNs)
+	logger.GetLogger().Debugf("[CHUNK_QUERY] camera=%s, table=%s, ts_ns=%d", cameraID, safeTable, tsNs)
 
 	resp, err := m.Query(ctx, sql, WithTimeformat("ns"))
 	if err != nil {
@@ -290,7 +295,7 @@ func (m *Machbase) ChunkRecordForTime(ctx context.Context, tableName string, cam
 
 	var rows []struct {
 		Time      int64   `json:"TIME"`
-		Value     float64 `json:"VALUE"`       // 길이 (초)
+		Value     float64 `json:"VALUE"`      // 길이 (초)
 		ChunkPath string  `json:"CHUNK_PATH"` // 파일 경로
 	}
 	if err := json.Unmarshal(resp.Data.Rows, &rows); err != nil {
