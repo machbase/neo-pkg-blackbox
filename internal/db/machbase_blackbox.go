@@ -233,6 +233,32 @@ func (m *Machbase) ListTags(ctx context.Context) ([]string, error) {
 	return []string{}, nil
 }
 
+// ListTables fetches TAG table names from Machbase, excluding _event and _log suffixed tables.
+func (m *Machbase) ListTables(ctx context.Context) ([]string, error) {
+	sql := "SELECT NAME FROM M$SYS_TABLES WHERE TYPE = 6 ORDER BY NAME"
+	resp, err := m.Query(ctx, sql)
+	if err != nil {
+		return nil, err
+	}
+
+	var rows []struct {
+		Name string `json:"NAME"`
+	}
+	if err := json.Unmarshal(resp.Data.Rows, &rows); err != nil {
+		return nil, err
+	}
+
+	var tables []string
+	for _, r := range rows {
+		name := strings.ToLower(r.Name)
+		if strings.HasSuffix(name, "_event") || strings.HasSuffix(name, "_log") {
+			continue
+		}
+		tables = append(tables, name)
+	}
+	return tables, nil
+}
+
 // ChunkRecord represents a chunk record.
 type ChunkRecord struct {
 	ChunkPath string    // 파일 경로

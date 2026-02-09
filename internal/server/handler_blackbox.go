@@ -52,6 +52,25 @@ func (h *Handler) GetCameras(c *gin.Context) {
 	})
 }
 
+// GetTables handles GET /api/tables.
+// Returns TAG table names from Machbase, excluding _event and _log tables.
+func (h *Handler) GetTables(c *gin.Context) {
+	tick := time.Now()
+
+	tables, err := h.machbase.ListTables(c.Request.Context())
+	if err != nil {
+		errorResponse(c, tick, http.StatusInternalServerError, fmt.Sprintf("failed to list tables: %v", err))
+		return
+	}
+	if tables == nil {
+		tables = []string{}
+	}
+
+	successResponse(c, tick, map[string]any{
+		"tables": tables,
+	})
+}
+
 // GetTimeRange handles GET /api/get_time_range.
 func (h *Handler) GetTimeRange(c *gin.Context) {
 	tick := time.Now()

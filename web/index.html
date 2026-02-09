@@ -320,6 +320,11 @@
         <div class="content">
             <div class="sidebar">
                 <div class="nav-section">
+                    <h3>Database</h3>
+                    <div class="nav-item" data-section="tables-list">테이블 목록</div>
+                </div>
+
+                <div class="nav-section">
                     <h3>Camera Management</h3>
                     <div class="nav-item" data-section="cameras-list">카메라 목록</div>
                     <div class="nav-item" data-section="camera-create">카메라 생성</div>
@@ -365,8 +370,16 @@
             </div>
 
             <div class="main-content">
+                <!-- Tables List Section -->
+                <div class="api-section active" id="tables-list">
+                    <h2><span class="method-badge method-get">GET</span> 테이블 목록</h2>
+                    <p class="help-text">Machbase TAG 테이블 목록을 조회합니다. (_event, _log 테이블 제외)</p>
+                    <button class="btn btn-primary" onclick="getTables()">조회하기</button>
+                    <div class="response-area" id="tables-list-response"></div>
+                </div>
+
                 <!-- Camera List Section -->
-                <div class="api-section active" id="cameras-list">
+                <div class="api-section" id="cameras-list">
                     <h2><span class="method-badge method-get">GET</span> 카메라 목록</h2>
                     <p class="help-text">모든 카메라 목록을 조회합니다.</p>
                     <button class="btn btn-primary" onclick="getCameras()">조회하기</button>
@@ -647,10 +660,18 @@
 
                 <!-- Event Rule Update Section -->
                 <div class="api-section" id="event-rule-update">
-                    <h2><span class="method-badge method-put">PUT</span> 이벤트 규칙 수정</h2>
+                    <h2><span class="method-badge method-post">POST</span> 이벤트 규칙 수정</h2>
                     <div class="form-group">
-                        <label>JSON Body *</label>
-                        <textarea id="eventrule-update-json" placeholder='{"camera_id": "camera1", "rule_id": "rule-1", ...}'></textarea>
+                        <label>Camera ID *</label>
+                        <input type="text" id="eventrule-update-camera" placeholder="camera1" />
+                    </div>
+                    <div class="form-group">
+                        <label>Rule ID *</label>
+                        <input type="text" id="eventrule-update-rule" placeholder="rule-1" />
+                    </div>
+                    <div class="form-group">
+                        <label>Rule JSON Body *</label>
+                        <textarea id="eventrule-update-json" placeholder='{"id": "rule-1", "expression_text": "person > 0", "recording_policy": "EDGE_ONLY"}'></textarea>
                     </div>
                     <button class="btn btn-success" onclick="updateEventRule()">수정하기</button>
                     <div class="response-area" id="event-rule-update-response"></div>
@@ -831,6 +852,17 @@ ${JSON.stringify(data, null, 2)}
             }
         }
 
+        // Table Functions
+        async function getTables() {
+            showLoading('tables-list-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/tables`);
+                showResponse('tables-list-response', data);
+            } catch (error) {
+                showResponse('tables-list-response', { error: error.message }, true);
+            }
+        }
+
         // Camera Management Functions
         async function getCameras() {
             showLoading('cameras-list-response');
@@ -1000,6 +1032,11 @@ ${JSON.stringify(data, null, 2)}
             }
         }
 
+        function seekChunk(seconds) {
+            adjustTime('chunk-time', seconds);
+            downloadChunk();
+        }
+
         async function downloadChunk() {
             const tagname = document.getElementById('chunk-tagname').value;
             const time = document.getElementById('chunk-time').value;
@@ -1057,6 +1094,8 @@ ${JSON.stringify(data, null, 2)}
                         </video>
                     </div>
                     <div style="margin-top: 10px;">
+                        <button class="btn btn-secondary" onclick="seekChunk(-5)">-5초</button>
+                        <button class="btn btn-secondary" onclick="seekChunk(5)">+5초</button>
                         <button class="btn btn-success" onclick="window.open('${chunkUrl}', '_blank')">파일로 저장</button>
                         <button class="btn btn-secondary" onclick="document.getElementById('chunk-download-response').innerHTML = ''">닫기</button>
                     </div>
@@ -1119,7 +1158,7 @@ ${JSON.stringify(data, null, 2)}
             const cameraId = document.getElementById('eventrule-get-camera').value;
             showLoading('event-rule-get-response');
             try {
-                const data = await apiRequest(`${API_BASE}/event_rule?camera_id=${cameraId}`);
+                const data = await apiRequest(`${API_BASE}/event_rule/${cameraId}`);
                 showResponse('event-rule-get-response', data);
             } catch (error) {
                 showResponse('event-rule-get-response', { error: error.message }, true);
@@ -1139,11 +1178,13 @@ ${JSON.stringify(data, null, 2)}
         }
 
         async function updateEventRule() {
+            const cameraId = document.getElementById('eventrule-update-camera').value;
+            const ruleId = document.getElementById('eventrule-update-rule').value;
             const jsonStr = document.getElementById('eventrule-update-json').value;
             showLoading('event-rule-update-response');
             try {
                 const body = JSON.parse(jsonStr);
-                const data = await apiRequest(`${API_BASE}/event_rule`, 'PUT', body);
+                const data = await apiRequest(`${API_BASE}/event_rule/${cameraId}/${ruleId}`, 'POST', body);
                 showResponse('event-rule-update-response', data);
             } catch (error) {
                 showResponse('event-rule-update-response', { error: error.message }, true);
@@ -1158,7 +1199,7 @@ ${JSON.stringify(data, null, 2)}
 
             showLoading('event-rule-delete-response');
             try {
-                const data = await apiRequest(`${API_BASE}/event_rule?camera_id=${cameraId}&rule_id=${ruleId}`, 'DELETE');
+                const data = await apiRequest(`${API_BASE}/event_rule/${cameraId}/${ruleId}`, 'DELETE');
                 showResponse('event-rule-delete-response', data);
             } catch (error) {
                 showResponse('event-rule-delete-response', { error: error.message }, true);
@@ -1192,7 +1233,7 @@ ${JSON.stringify(data, null, 2)}
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
-            getCameras();
+            getTables();
         });
     </script>
 </body>
