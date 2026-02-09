@@ -134,11 +134,9 @@ type RuleFailure struct {
 func (w *Watcher) prepare() ([]WatcherRule, []RuleFailure) {
 	// 카메라 설정 파일들을 읽어서 WatcherRule 생성
 	type CameraConfig struct {
-		Enabled   bool   `json:"enabled"`
-		Table     string `json:"table"`
-		Name      string `json:"name"`
-		OutputDir string `json:"output_dir"`
-		OutputName string `json:"output_name"`
+		Enabled bool   `json:"enabled"`
+		Table   string `json:"table"`
+		Name    string `json:"name"`
 	}
 
 	active := make([]WatcherRule, 0)
@@ -176,13 +174,13 @@ func (w *Watcher) prepare() ([]WatcherRule, []RuleFailure) {
 			continue
 		}
 
-		// WatcherRule 생성
+		// WatcherRule 생성 - derive paths from DataDir
 		rule := WatcherRule{
 			CameraID:  config.Name,
 			Table:     config.Table,
-			SourceDir: config.OutputDir,
-			TargetDir: filepath.Join(filepath.Dir(config.OutputDir), "out"),
-			Ext:       filepath.Ext(config.OutputName),
+			SourceDir: filepath.Join(w.DataDir, config.Name, "in"),
+			TargetDir: filepath.Join(w.DataDir, config.Name, "out"),
+			Ext:       ".mpd",
 		}
 
 		// Validation
@@ -192,9 +190,15 @@ func (w *Watcher) prepare() ([]WatcherRule, []RuleFailure) {
 			failed = append(failed, RuleFailure{id: i, Rule: rule, Err: reason})
 			continue
 		}
+		if err := os.MkdirAll(rule.SourceDir, 0o755); err != nil {
+			reason := fmt.Errorf("failed to mkdir source_dir=%q: %v", rule.SourceDir, err)
+			logger.GetLogger().Infof("watcher rule[%d] camera=%q: mkdir source_dir=%q: %v", i, config.Name, rule.SourceDir, err)
+			failed = append(failed, RuleFailure{id: i, Rule: rule, Err: reason})
+			continue
+		}
 		if err := os.MkdirAll(rule.TargetDir, 0o755); err != nil {
-			reason := fmt.Errorf("failed to mkdir target_dir=%q : %v,", rule.TargetDir, err)
-			logger.GetLogger().Infof("watcher rule[%d] camera=%q: mkdir target_dir=%q (source_dir=%q): %v", i, config.Name, rule.TargetDir, rule.SourceDir, err)
+			reason := fmt.Errorf("failed to mkdir target_dir=%q: %v", rule.TargetDir, err)
+			logger.GetLogger().Infof("watcher rule[%d] camera=%q: mkdir target_dir=%q: %v", i, config.Name, rule.TargetDir, err)
 			failed = append(failed, RuleFailure{id: i, Rule: rule, Err: reason})
 			continue
 		}
@@ -595,9 +599,12 @@ func (w *Watcher) AddWatch(ctx context.Context, rule WatcherRule) error {
 		return fmt.Errorf("watcher not running")
 	}
 
-	// Prepare target directory
+	// Prepare directories
 	if rule.TargetDir == "" {
 		return fmt.Errorf("target_dir is empty")
+	}
+	if err := os.MkdirAll(rule.SourceDir, 0o755); err != nil {
+		return fmt.Errorf("failed to mkdir source_dir=%q: %v", rule.SourceDir, err)
 	}
 	if err := os.MkdirAll(rule.TargetDir, 0o755); err != nil {
 		return fmt.Errorf("failed to mkdir target_dir=%q: %v", rule.TargetDir, err)

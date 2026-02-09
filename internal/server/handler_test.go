@@ -296,7 +296,6 @@ func TestAPI_EnableDisableCamera(t *testing.T) {
 			{K: "c:v", V: ptr("copy")},
 			{K: "f", V: ptr("dash")},
 		},
-		OutputName: "manifest.mpd",
 	}
 
 	camJSON, err := json.MarshalIndent(camConfig, "", "  ")

@@ -407,14 +407,6 @@
                         <input type="text" id="create-rtsp" placeholder="rtsp://192.168.1.100:554/stream" />
                     </div>
                     <div class="form-group">
-                        <label>Output Directory</label>
-                        <input type="text" id="create-output-dir" placeholder="/data/camera1/in" />
-                    </div>
-                    <div class="form-group">
-                        <label>Output Name</label>
-                        <input type="text" id="create-output-name" placeholder="manifest.mpd" />
-                    </div>
-                    <div class="form-group">
                         <label>Detect Objects (쉼표로 구분)</label>
                         <input type="text" id="create-objects" placeholder="person,car,truck,bus" />
                     </div>
@@ -913,8 +905,6 @@ ${JSON.stringify(data, null, 2)}
                     name: document.getElementById('create-name').value,
                     desc: document.getElementById('create-desc').value,
                     rtsp_url: document.getElementById('create-rtsp').value,
-                    output_dir: document.getElementById('create-output-dir').value,
-                    output_name: document.getElementById('create-output-name').value || 'manifest.mpd',
                     detect_objects: document.getElementById('create-objects').value.split(',').map(s => s.trim()).filter(Boolean),
                     save_objects: true,
                     ffmpeg_options: ffmpegOptions

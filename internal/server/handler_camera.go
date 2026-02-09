@@ -49,8 +49,6 @@ type CameraCreateRequest struct {
 	SaveObjects   bool     `json:"save_objects"`   // {camera}_log 테이블에 데이터 저장 여부
 
 	FFmpegOptions []ReqKV `json:"ffmpeg_options"` // 프론트에 전달 필요
-	OutputDir     string  `json:"output_dir"`     // ffmpeg 출력 디렉토리
-	OutputName    string  `json:"output_name"`    // ffmpeg 출력 파일명 (e.g., manifest.mpd)
 
 	EventRule []EventRule // request에서는 안 받지만, 별도로 eventRule을 받는 API가 있고 CameraCreateRequest의 구조체는 파일에 json으로 저장됨
 }
@@ -85,12 +83,16 @@ func (h *Handler) CreateCamera(c *gin.Context) {
 		return
 	}
 
-	// Set default values
-	if req.OutputName == "" {
-		req.OutputName = "manifest.mpd"
+	// Create camera data directories
+	inDir := filepath.Join(h.dataDir, req.Name, "in")
+	outDir := filepath.Join(h.dataDir, req.Name, "out")
+	if err := os.MkdirAll(inDir, 0755); err != nil {
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to create input directory")
+		return
 	}
-	if req.OutputDir == "" {
-		req.OutputDir = filepath.Join(h.dataDir, req.Name, "in")
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to create output directory")
+		return
 	}
 
 	req.Enabled = true
@@ -433,14 +435,6 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 	req.Name = existing.Name
 	req.Table = existing.Table
 
-	// Set default values
-	if req.OutputName == "" {
-		req.OutputName = "manifest.mpd"
-	}
-	if req.OutputDir == "" {
-		req.OutputDir = filepath.Join(h.dataDir, req.Name, "in")
-	}
-
 	cameraJSON, err := json.MarshalIndent(req, "", "  ")
 	if err != nil {
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to marshal camera config")
@@ -562,10 +556,7 @@ func (h *Handler) EnableCamera(c *gin.Context) {
 	args := buildFFmpegArgs(cam)
 
 	// output_dir 준비
-	outputDir := cam.OutputDir
-	if outputDir == "" {
-		outputDir = filepath.Join(h.dataDir, id, "in")
-	}
+	outputDir := filepath.Join(h.dataDir, id, "in")
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to create output directory")
 		return
@@ -698,11 +689,7 @@ func buildFFmpegArgs(cam CameraCreateRequest) []string {
 	args = append(args, "-i", cam.RtspURL)
 	args = append(args, outputArgs...)
 
-	outputName := cam.OutputName
-	if outputName == "" {
-		outputName = "manifest.mpd"
-	}
-	args = append(args, outputName)
+	args = append(args, "manifest.mpd")
 
 	return args
 }

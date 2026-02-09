@@ -195,7 +195,6 @@ func (h *Handler) UpdateEventRules(c *gin.Context) {
 
 	successResponse(c, tick, map[string]any{
 		"camera_id": cameraID,
-		"rule_id":   ruleID,
 		"rule":      rule,
 	})
 }

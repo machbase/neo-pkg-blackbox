@@ -72,6 +72,8 @@ func (s *Server) routes() {
 	// ==================================================================
 	// Blackbox
 	api.GET("/tables", s.handler.GetTables)
+	api.GET("/models", s.handler.GetModels)
+	api.GET("/detect_objects", s.handler.GetDetectObjects)
 	api.GET("/cameras", s.handler.GetCameras)
 	api.GET("/get_time_range", s.handler.GetTimeRange)
 	api.GET("/get_chunk_info", s.handler.GetChunkInfo)

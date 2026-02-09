@@ -71,6 +71,36 @@ func (h *Handler) GetTables(c *gin.Context) {
 	})
 }
 
+// GetModels handles GET /api/models.
+// 사용 가능한 AI 모델 목록을 반환 (하드코딩).
+func (h *Handler) GetModels(c *gin.Context) {
+	tick := time.Now()
+
+	models := map[string]string{
+		"0": "yolov8n.onnx",
+		"1": "yolov8s.onnx",
+		"2": "yolov8m.onnx",
+		"3": "yolov8l.onnx",
+		"4": "yolov8x.onnx",
+	}
+
+	successResponse(c, tick, map[string]any{
+		"models": models,
+	})
+}
+
+// GetDetectObjects handles GET /api/detect_objects.
+// 감지 가능한 객체 목록을 반환 (하드코딩).
+func (h *Handler) GetDetectObjects(c *gin.Context) {
+	tick := time.Now()
+
+	objects := []string{"person", "car", "truck", "bus"}
+
+	successResponse(c, tick, map[string]any{
+		"detect_objects": objects,
+	})
+}
+
 // GetTimeRange handles GET /api/get_time_range.
 func (h *Handler) GetTimeRange(c *gin.Context) {
 	tick := time.Now()

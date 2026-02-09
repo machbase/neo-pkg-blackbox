@@ -1,5 +1,50 @@
 # Blackbox Backend API Specification
 
+## GET /api/tables
+
+Machbase TAG 테이블 목록 조회 (`_event`, `_log` 접미사 테이블 제외)
+
+Response:
+```json
+{
+    "tables": ["string"]                  // []string - 테이블 이름 목록
+}
+```
+
+---
+
+## GET /api/models
+
+사용 가능한 AI 모델 목록 조회 (하드코딩)
+
+Response:
+```json
+{
+    "models": [
+        {
+            "id": 0,                      // int - 모델 ID
+            "name": "string"              // 모델 이름 (예: "yolov8n")
+        }
+    ]
+}
+```
+
+---
+
+## GET /api/detect_objects
+
+감지 가능한 객체 목록 조회 (COCO 80 클래스, 하드코딩)
+
+Response:
+```json
+{
+    "detect_objects": ["string"]          // []string - 객체 이름 목록
+                                          // 예: ["person", "bicycle", "car", ...]
+}
+```
+
+---
+
 ## POST /api/camera
 
 카메라 생성
@@ -23,13 +68,7 @@ Request:
 
     "ffmpeg_options": [                   // []ReqKV - FFmpeg 옵션 배열
         { "k": "string", "v": "string" }  // k: 옵션명, v: 옵션값 (optional)
-    ],
-
-    "output_dir": "string",               // ffmpeg 출력 디렉토리
-                                          // 기본값: {data_dir}/{camera_id}/in
-
-    "output_name": "string"               // ffmpeg 출력 파일명
-                                          // 기본값: manifest.mpd
+    ]
 }
 ```
 
@@ -66,9 +105,6 @@ Response:
         { "k": "string", "v": "string" }
     ],
 
-    "output_dir": "string",               // ffmpeg 출력 디렉토리
-    "output_name": "string",              // ffmpeg 출력 파일명
-
     "EventRule": [                        // []EventRule - 이벤트 규칙 배열
         {
             "rule_id": "string",          // 규칙 ID
@@ -102,10 +138,7 @@ Request:
 
     "ffmpeg_options": [                   // []ReqKV - FFmpeg 옵션 배열
         { "k": "string", "v": "string" }
-    ],
-
-    "output_dir": "string",               // ffmpeg 출력 디렉토리
-    "output_name": "string"               // ffmpeg 출력 파일명
+    ]
 }
 ```
 
@@ -298,7 +331,6 @@ Response:
 ```json
 {
     "camera_id": "string",                // 카메라 ID
-    "rule_id": "string",                  // 규칙 ID
     "rule": {
         "rule_id": "string",              // 규칙 ID
         "name": "string",                 // 규칙 이름
