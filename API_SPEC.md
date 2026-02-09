@@ -511,6 +511,12 @@ Response:
 }
 ```
 
+Note:
+- 청크 검색은 요청된 시간(`time`)이 청크의 시간 범위 내에 포함되는지 확인
+- 검색 조건: `chunk.time <= requested_time <= chunk.time + chunk.length`
+- `chunk.length`는 청크의 길이(초 단위)를 나타내며, 나노초로 변환하여 계산
+- 조건을 만족하는 첫 번째 청크를 반환
+
 ---
 
 ## GET /api/v_get_chunk?tagname={tagname}&time={time}
@@ -521,6 +527,11 @@ Response:
 ```
 binary                                    // 비디오 청크 바이너리 데이터
 ```
+
+Note:
+- `time=0` 또는 `time=init`: 초기화 세그먼트(init segment) 반환
+- 그 외: 요청 시간을 포함하는 청크 검색 후 바이너리 데이터 반환
+- 청크 검색 로직은 `/api/get_chunk_info`와 동일
 
 ---
 

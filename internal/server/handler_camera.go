@@ -35,7 +35,7 @@ type MvsCameraCreateRequest struct {
 
 // 이 구조체는 테이블이 아닌 파일로 저장이됨, JSON형식
 type CameraCreateRequest struct {
-	Enabled bool
+	Enabled bool `json:"enabled"`
 	Table   string `json:"table" binding:"required"`
 	Name    string `json:"name" binding:"required"`
 	Desc    string `json:"desc"`
@@ -54,7 +54,7 @@ type CameraCreateRequest struct {
 
 	FFmpegOptions []ReqKV `json:"ffmpeg_options"` // 프론트에 전달 필요
 
-	EventRule []EventRule // request에서는 안 받지만, 별도로 eventRule을 받는 API가 있고 CameraCreateRequest의 구조체는 파일에 json으로 저장됨
+	EventRule []EventRule `json:"event_rule"` // request에서는 안 받지만, 별도로 eventRule을 받는 API가 있고 CameraCreateRequest의 구조체는 파일에 json으로 저장됨
 }
 
 type ReqKV struct {
