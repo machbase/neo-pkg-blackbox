@@ -297,9 +297,11 @@ func (h *Handler) GetChunk(c *gin.Context) {
 			return
 		}
 
-		// archive_dir + 상대경로로 절대경로 복원
-		archiveDir := h.resolveArchiveDir(cameraID)
-		fullPath := filepath.Join(archiveDir, record.ChunkPath)
+		// 절대경로면 그대로 사용 (기존 데이터 호환), 상대경로면 archive_dir 붙여서 복원
+		fullPath := record.ChunkPath
+		if !filepath.IsAbs(fullPath) {
+			fullPath = filepath.Join(h.resolveArchiveDir(cameraID), fullPath)
+		}
 		chunkData, err = os.ReadFile(fullPath)
 		if err != nil {
 			logger.GetLogger().Errorf("GetChunk[%s]: failed to read chunk file %q: %v", cameraID, fullPath, err)
