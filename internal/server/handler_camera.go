@@ -119,7 +119,9 @@ func (h *Handler) CreateCamera(c *gin.Context) {
 	if req.ArchiveDir == "" || !filepath.IsAbs(req.ArchiveDir) {
 		req.ArchiveDir = filepath.Join(h.dataDir, req.Name, "out")
 	}
-	// Note: FFmpegCommand is optional - will be resolved at runtime in EnableCamera
+	if req.FFmpegCommand == "" {
+		req.FFmpegCommand = "ffmpeg"
+	}
 
 	// Create camera data directories
 	if err := os.MkdirAll(req.OutputDir, 0755); err != nil {

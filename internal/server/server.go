@@ -70,11 +70,14 @@ func (s *Server) routes() {
 	api := s.engine.Group("/api")
 
 	// ==================================================================
-	// Blackbox
+	// 목록
 	api.GET("/tables", s.handler.GetTables)
 	api.GET("/models", s.handler.GetModels)
 	api.GET("/detect_objects", s.handler.GetDetectObjects)
 	api.GET("/cameras", s.handler.GetCameras)
+
+	// ==================================================================
+	// Blackbox
 	api.GET("/get_time_range", s.handler.GetTimeRange)
 	api.GET("/get_chunk_info", s.handler.GetChunkInfo)
 	api.GET("/v_get_chunk", s.handler.GetChunk)

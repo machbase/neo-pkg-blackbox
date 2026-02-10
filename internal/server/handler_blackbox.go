@@ -433,6 +433,7 @@ func (h *Handler) GetCameraEvents(c *gin.Context) {
 	}
 
 	type eventRow struct {
+		Name               string  `json:"name"`
 		Time               string  `json:"time"`
 		Value              float64 `json:"value"`
 		ValueLabel         string  `json:"value_label"`
@@ -456,6 +457,7 @@ func (h *Handler) GetCameraEvents(c *gin.Context) {
 			label = "ERROR"
 		}
 		events[i] = eventRow{
+			Name:               r.Name,
 			Time:               formatTime(r.Time),
 			Value:              r.Value,
 			ValueLabel:         label,
