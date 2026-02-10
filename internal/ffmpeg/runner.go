@@ -117,6 +117,7 @@ type SegmentTiming struct {
 	StartPTS float64
 	LastPTS  float64
 	LastDur  float64
+	EndPTS   float64 // LastPTS + LastDur
 	Length   float64
 }
 
@@ -166,14 +167,25 @@ func (r *FFmpegRunner) ProbeConcatPacketTiming(ctx context.Context, initFile str
 	}
 
 	start, err := parseCSVFloat(firstLine, 0)
+	if err != nil {
+		return SegmentTiming{}, fmt.Errorf("parse start pts: %w", err)
+	}
 	lastPts, err := parseCSVFloat(lastLine, 0)
+	if err != nil {
+		return SegmentTiming{}, fmt.Errorf("parse last pts: %w", err)
+	}
 	lastDur, err := parseCSVFloat(lastLine, 1)
-	length := (lastPts + lastDur) - start
+	if err != nil {
+		return SegmentTiming{}, fmt.Errorf("parse last dur: %w", err)
+	}
+	endPts := lastPts + lastDur
+	length := endPts - start
 
 	return SegmentTiming{
 		StartPTS: start,
 		LastPTS:  lastPts,
 		LastDur:  lastDur,
+		EndPTS:   endPts,
 		Length:   length,
 	}, nil
 }

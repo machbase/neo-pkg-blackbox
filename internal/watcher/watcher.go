@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -35,6 +36,39 @@ type WatcherRule struct {
 	Ext       string
 }
 
+// ptsOffset은 카메라별 PTS→epoch 변환 오프셋을 관리한다.
+// PTS가 상대시간(예: 22.3초)이든 epoch이든, offset을 더하면 절대시간이 된다.
+type ptsOffset struct {
+	value       float64 // 현재 오프셋 (초)
+	initialized bool
+}
+
+// updateOffset은 새로운 오프셋 샘플로 기존 값을 갱신한다.
+// - 첫 샘플이거나 큰 점프(>2초)가 발생하면 즉시 리셋 (스트림 재시작 대응)
+// - 그 외엔 EMA(지수이동평균)로 평활화하여 inotify 지터를 흡수
+func (o *ptsOffset) updateOffset(newOffset float64) {
+	const (
+		resetThreshold = 2.0  // 초: 이보다 큰 차이면 리셋
+		emaAlpha       = 0.1  // EMA 계수 (0.1 = 새 값 10% 반영)
+	)
+
+	if !o.initialized {
+		o.value = newOffset
+		o.initialized = true
+		return
+	}
+
+	diff := math.Abs(newOffset - o.value)
+	if diff > resetThreshold {
+		// 스트림 재시작 또는 PTS 리셋 감지
+		o.value = newOffset
+		return
+	}
+
+	// EMA 평활화
+	o.value = (1-emaAlpha)*o.value + emaAlpha*newOffset
+}
+
 type Watcher struct {
 	neo     *db.Machbase
 	ffRuner *ffmpeg.FFmpegRunner
@@ -49,6 +83,9 @@ type Watcher struct {
 	inFd     int
 	watchSet *WatchSet
 	mask     uint32
+
+	// 카메라별 PTS offset (mu로 보호)
+	offsets map[string]*ptsOffset
 }
 
 func New(neo *db.Machbase, ffRunner *ffmpeg.FFmpegRunner, cameraDir string) *Watcher {
@@ -56,6 +93,7 @@ func New(neo *db.Machbase, ffRunner *ffmpeg.FFmpegRunner, cameraDir string) *Wat
 		neo:       neo,
 		ffRuner:   ffRunner,
 		CameraDir: cameraDir,
+		offsets:   make(map[string]*ptsOffset),
 	}
 }
 
@@ -512,9 +550,28 @@ func (w *Watcher) proecessChunk(ctx context.Context, rule WatcherRule, name stri
 		logger.GetLogger().Warnf("[CHUNK] abnormal length=%.6f for %s", timing.Length, name)
 	}
 
-	// StartPTS = Unix epoch(초) (use_wallclock_as_timestamps=1 기준)
-	startTimeSec := timing.StartPTS
-	utcTimeNs := int64(startTimeSec * 1_000_000_000) // 초 -> 나노초
+	// PTS→절대시간 변환 (offset 매핑)
+	// wallEnd = inotify 감지 시각 ≈ 세그먼트 끝 시점의 현실 시간
+	// observedEpochMs는 ffprobe/파일이동 이전에 찍힌 값이므로 더 정확
+	// offsetNew = wallEnd - endPts → PTS에 더하면 epoch가 됨
+	wallEnd := float64(observedEpochMs) / 1e3
+	offsetNew := wallEnd - timing.EndPTS
+
+	w.mu.Lock()
+	off, exists := w.offsets[rule.CameraID]
+	if !exists {
+		off = &ptsOffset{}
+		w.offsets[rule.CameraID] = off
+	}
+	off.updateOffset(offsetNew)
+	currentOffset := off.value
+	w.mu.Unlock()
+
+	absStart := timing.StartPTS + currentOffset
+	utcTimeNs := int64(absStart * 1e9)
+
+	logger.GetLogger().Debugf("[CHUNK] offset mapping: camera=%s pts=%.3f wallEnd=%.3f offsetNew=%.3f offset=%.3f absStart=%.3f",
+		rule.CameraID, timing.StartPTS, wallEnd, offsetNew, currentOffset, absStart)
 
 	// 날짜 디렉토리 생성 (영상 실제 시작 시각 기준)
 	dateDir := time.Unix(0, utcTimeNs).UTC().Format("20060102")
@@ -546,7 +603,7 @@ func (w *Watcher) proecessChunk(ctx context.Context, rule WatcherRule, name stri
 		return fmt.Errorf("InsertChunk: %v", err)
 	}
 
-	logger.GetLogger().Infof("[CHUNK] %s -> %s start=%.6f len=%.6f utcNs=%d relPath=%s", name, finalPath, startTimeSec, timing.Length, utcTimeNs, relPath)
+	logger.GetLogger().Infof("[CHUNK] %s -> %s absStart=%.6f len=%.6f utcNs=%d relPath=%s", name, finalPath, absStart, timing.Length, utcTimeNs, relPath)
 
 	return nil
 }
