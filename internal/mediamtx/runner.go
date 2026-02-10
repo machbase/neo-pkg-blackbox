@@ -4,7 +4,10 @@ import (
 	"blackbox-backend/internal/logger"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -241,4 +244,69 @@ func (r *Runner) RunCommand(ctx context.Context, args ...string) (string, error)
 	}
 
 	return outBuf.String(), nil
+}
+
+// HeartbeatResponse represents MediaMTX API response
+type HeartbeatResponse struct {
+	Status  string                 `json:"status"`
+	Data    map[string]interface{} `json:"data,omitempty"`
+	Message string                 `json:"message,omitempty"`
+}
+
+// Heartbeat checks if MediaMTX server is alive using HTTP API
+// mediaURL format: http://host:port or rtsp://host:port (will convert to HTTP API)
+func Heartbeat(ctx context.Context, mediaURL string, timeout time.Duration) (*HeartbeatResponse, error) {
+	if mediaURL == "" {
+		return nil, fmt.Errorf("media URL is empty")
+	}
+
+	// Parse URL and convert to HTTP API endpoint
+	parsedURL, err := url.Parse(mediaURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid media URL: %w", err)
+	}
+
+	// Default MediaMTX HTTP API port is 9997
+	apiURL := fmt.Sprintf("http://%s:9997/v3/config/global/get", parsedURL.Hostname())
+
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: timeout,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return &HeartbeatResponse{
+			Status:  "error",
+			Message: fmt.Sprintf("connection failed: %v", err),
+		}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return &HeartbeatResponse{
+			Status:  "unhealthy",
+			Message: fmt.Sprintf("HTTP %d", resp.StatusCode),
+		}, fmt.Errorf("unhealthy: status code %d", resp.StatusCode)
+	}
+
+	// Try to parse response
+	var apiResp map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		// If parsing fails, still consider it healthy (server responded)
+		return &HeartbeatResponse{
+			Status:  "healthy",
+			Message: "server responded",
+		}, nil
+	}
+
+	return &HeartbeatResponse{
+		Status: "healthy",
+		Data:   apiResp,
+	}, nil
 }

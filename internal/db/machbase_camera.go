@@ -7,6 +7,64 @@ import (
 	"time"
 )
 
+// CreateTable creates a TAG table with the standard structure.
+// If the table already exists, it will be reused.
+func (m *Machbase) CreateTable(ctx context.Context, tableName string) error {
+	sql := fmt.Sprintf(`CREATE TAG TABLE IF NOT EXISTS %s (
+    name VARCHAR(128) PRIMARY KEY,
+    time DATETIME BASETIME,
+    value DOUBLE SUMMARIZED,
+    chunk_path VARCHAR(128)
+) WITH ROLLUP`, tableName)
+
+	if _, err := m.Query(ctx, sql); err != nil {
+		return fmt.Errorf("create table %s: %w", tableName, err)
+	}
+
+	return nil
+}
+
+// CreateCameraEventTable creates {table}_event table.
+// If the table already exists, it will be reused.
+func (m *Machbase) CreateCameraEventTable(ctx context.Context, tableName string) error {
+	sqlEvent := fmt.Sprintf(`CREATE TAG TABLE IF NOT EXISTS %s_event (
+    name VARCHAR(128) PRIMARY KEY,
+    time DATETIME BASETIME,
+    value DOUBLE,
+    expression_text VARCHAR(1024),
+    used_counts_snapshot JSON
+) METADATA (
+    camera_id VARCHAR(64),
+    rule_id VARCHAR(64)
+)`, tableName)
+
+	if _, err := m.Query(ctx, sqlEvent); err != nil {
+		return fmt.Errorf("create table %s_event: %w", tableName, err)
+	}
+
+	return nil
+}
+
+// CreateCameraLogTable creates {table}_log table.
+// If the table already exists, it will be reused.
+func (m *Machbase) CreateCameraLogTable(ctx context.Context, tableName string) error {
+	sqlLog := fmt.Sprintf(`CREATE TAG TABLE IF NOT EXISTS %s_log (
+    name VARCHAR(128) PRIMARY KEY,
+    time DATETIME BASETIME,
+    value DOUBLE,
+    model_id INTEGER
+) METADATA (
+    camera_id VARCHAR(64),
+    ident VARCHAR(64)
+)`, tableName)
+
+	if _, err := m.Query(ctx, sqlLog); err != nil {
+		return fmt.Errorf("create table %s_log: %w", tableName, err)
+	}
+
+	return nil
+}
+
 // CreateCameraTables creates 3 tables for a camera: {name}, {name}_event, {name}_log
 // If tables already exist, they will be reused (multiple cameras can share the same table).
 func (m *Machbase) CreateCameraTables(ctx context.Context, name string) error {

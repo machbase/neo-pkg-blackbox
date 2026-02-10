@@ -4,6 +4,7 @@ import (
 	"blackbox-backend/internal/db"
 	"blackbox-backend/internal/dsl"
 	"blackbox-backend/internal/logger"
+	"blackbox-backend/internal/mediamtx"
 	"blackbox-backend/internal/watcher"
 	"context"
 	"encoding/json"
@@ -109,16 +110,29 @@ func (h *Handler) CreateCamera(c *gin.Context) {
 		return
 	}
 
-	// Set default paths
-	// - Empty: use data_dir/{name}/in|out
+	// Validate required paths
+	if req.OutputDir == "" {
+		logger.GetLogger().Errorf("CreateCamera[%s]: output_dir is required", req.Name)
+		errorResponse(c, tick, http.StatusBadRequest, "output_dir is required")
+		return
+	}
+	if req.ArchiveDir == "" {
+		logger.GetLogger().Errorf("CreateCamera[%s]: archive_dir is required", req.Name)
+		errorResponse(c, tick, http.StatusBadRequest, "archive_dir is required")
+		return
+	}
+
+	// Resolve paths:
 	// - Absolute path: use as-is
-	// - Relative path: treat as empty (use data_dir)
-	if req.OutputDir == "" || !filepath.IsAbs(req.OutputDir) {
-		req.OutputDir = filepath.Join(h.dataDir, req.Name, "in")
+	// - Relative path: join with data_dir
+	if !filepath.IsAbs(req.OutputDir) {
+		req.OutputDir = filepath.Join(h.dataDir, req.OutputDir)
 	}
-	if req.ArchiveDir == "" || !filepath.IsAbs(req.ArchiveDir) {
-		req.ArchiveDir = filepath.Join(h.dataDir, req.Name, "out")
+	if !filepath.IsAbs(req.ArchiveDir) {
+		req.ArchiveDir = filepath.Join(h.dataDir, req.ArchiveDir)
 	}
+
+	// Set default ffmpeg command
 	if req.FFmpegCommand == "" {
 		req.FFmpegCommand = "ffmpeg"
 	}
@@ -150,14 +164,47 @@ func (h *Handler) CreateCamera(c *gin.Context) {
 		return
 	}
 
-	// 2. Create 3 tables: {table}, {table}_event, {table}_log
-	if err := h.machbase.CreateCameraTables(c.Request.Context(), req.Table); err != nil {
+	// 2. Create tables conditionally
+	// 2.1. Create {table}_log if save_objects is true
+	if req.SaveObjects {
+		if err := h.machbase.CreateCameraLogTable(c.Request.Context(), req.Table); err != nil {
+			// Rollback: delete the config file
+			_ = os.Remove(cameraPath)
+			logger.GetLogger().Errorf("CreateCamera[%s]: failed to create log table for %q: %v", req.Name, req.Table, err)
+			errorResponse(c, tick, http.StatusInternalServerError, fmt.Sprintf("failed to create log table: %v", err))
+			return
+		}
+		logger.GetLogger().Infof("CreateCamera[%s]: created log table %s_log", req.Name, req.Table)
+	}
+
+	// 2.2. Create {table}_event if any event_rule is enabled
+	hasEnabledRule := false
+	for _, rule := range req.EventRule {
+		if rule.Enabled {
+			hasEnabledRule = true
+			break
+		}
+	}
+	if hasEnabledRule {
+		if err := h.machbase.CreateCameraEventTable(c.Request.Context(), req.Table); err != nil {
+			// Rollback: delete the config file
+			_ = os.Remove(cameraPath)
+			logger.GetLogger().Errorf("CreateCamera[%s]: failed to create event table for %q: %v", req.Name, req.Table, err)
+			errorResponse(c, tick, http.StatusInternalServerError, fmt.Sprintf("failed to create event table: %v", err))
+			return
+		}
+		logger.GetLogger().Infof("CreateCamera[%s]: created event table %s_event", req.Name, req.Table)
+	}
+
+	// 2.3. Create main {table} (always)
+	if err := h.machbase.CreateTable(c.Request.Context(), req.Table); err != nil {
 		// Rollback: delete the config file
 		_ = os.Remove(cameraPath)
-		logger.GetLogger().Errorf("CreateCamera[%s]: failed to create camera tables for table %q: %v", req.Name, req.Table, err)
-		errorResponse(c, tick, http.StatusInternalServerError, fmt.Sprintf("failed to create camera tables: %v", err))
+		logger.GetLogger().Errorf("CreateCamera[%s]: failed to create main table %q: %v", req.Name, req.Table, err)
+		errorResponse(c, tick, http.StatusInternalServerError, fmt.Sprintf("failed to create main table: %v", err))
 		return
 	}
+	logger.GetLogger().Infof("CreateCamera[%s]: created main table %s", req.Name, req.Table)
 
 	// 3. Save MVS config file (for detection program)
 	if err := os.MkdirAll(h.mvsDir, 0755); err != nil {
@@ -337,6 +384,31 @@ func (h *Handler) UploadAIResult(c *gin.Context) {
 	_ = h.evaluateEventRules(c.Request.Context(), config.Table, config.Name, tsNano, req.Detections, config.EventRule)
 
 	successResponse(c, tick, nil)
+}
+
+// CreateTable handles POST /api/table.
+// Creates a TAG table with the standard structure.
+func (h *Handler) CreateTable(c *gin.Context) {
+	tick := time.Now()
+
+	var req struct {
+		TableName string `json:"table_name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errorResponse(c, tick, http.StatusBadRequest, "table_name is required")
+		return
+	}
+
+	if err := h.machbase.CreateTable(c.Request.Context(), req.TableName); err != nil {
+		logger.GetLogger().Errorf("create table %s: %v", req.TableName, err)
+		errorResponse(c, tick, http.StatusInternalServerError, fmt.Sprintf("failed to create table: %v", err))
+		return
+	}
+
+	successResponse(c, tick, map[string]any{
+		"table_name": req.TableName,
+		"created":    true,
+	})
 }
 
 // evaluateEventRules evaluates all enabled event rules against detection counts.
@@ -657,18 +729,29 @@ func (h *Handler) EnableCamera(c *gin.Context) {
 		ffmpegBin = h.ffmpegBinary
 	}
 
-	// Set paths:
-	// - Empty: use data_dir/{camera_id}/in|out
+	// Validate required paths
+	if cam.OutputDir == "" {
+		logger.GetLogger().Errorf("EnableCamera[%s]: output_dir not configured", id)
+		errorResponse(c, tick, http.StatusBadRequest, "output_dir not configured in camera config")
+		return
+	}
+	if cam.ArchiveDir == "" {
+		logger.GetLogger().Errorf("EnableCamera[%s]: archive_dir not configured", id)
+		errorResponse(c, tick, http.StatusBadRequest, "archive_dir not configured in camera config")
+		return
+	}
+
+	// Resolve paths:
 	// - Absolute path: use as-is
-	// - Relative path: treat as empty (use data_dir)
+	// - Relative path: join with data_dir
 	outputDir := cam.OutputDir
-	if outputDir == "" || !filepath.IsAbs(outputDir) {
-		outputDir = filepath.Join(h.dataDir, id, "in")
+	if !filepath.IsAbs(outputDir) {
+		outputDir = filepath.Join(h.dataDir, outputDir)
 	}
 
 	archiveDir := cam.ArchiveDir
-	if archiveDir == "" || !filepath.IsAbs(archiveDir) {
-		archiveDir = filepath.Join(h.dataDir, id, "out")
+	if !filepath.IsAbs(archiveDir) {
+		archiveDir = filepath.Join(h.dataDir, archiveDir)
 	}
 
 	// output_dir 준비
@@ -1050,5 +1133,62 @@ func (h *Handler) UpdateDetectObjectsByCamera(c *gin.Context) {
 	successResponse(c, tick, map[string]any{
 		"camera_id":      id,
 		"detect_objects": req.DetectObjects,
+	})
+}
+
+// HeartbeatMediaMTX handles GET /api/media/:id/heartbeat.
+// MediaMTX 서버의 상태를 확인 (카메라 설정의 media_url 사용).
+func (h *Handler) HeartbeatMediaMTX(c *gin.Context) {
+	tick := time.Now()
+	id := c.Param("id")
+
+	if id == "" {
+		errorResponse(c, tick, http.StatusBadRequest, "camera id is required")
+		return
+	}
+
+	// 카메라 설정 파일 읽기
+	cameraPath := filepath.Join(h.cameraDir, id+".json")
+	data, err := os.ReadFile(cameraPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.GetLogger().Warnf("HeartbeatMediaMTX[%s]: camera config file not found: %s", id, cameraPath)
+			errorResponse(c, tick, http.StatusNotFound, fmt.Sprintf("camera '%s' not found", id))
+			return
+		}
+		logger.GetLogger().Errorf("HeartbeatMediaMTX[%s]: failed to read camera config: %v", id, err)
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to read camera config")
+		return
+	}
+
+	var camera CameraCreateRequest
+	if err := json.Unmarshal(data, &camera); err != nil {
+		logger.GetLogger().Errorf("HeartbeatMediaMTX[%s]: failed to parse camera config: %v", id, err)
+		errorResponse(c, tick, http.StatusInternalServerError, "failed to parse camera config")
+		return
+	}
+
+	if camera.MediaURL == "" {
+		errorResponse(c, tick, http.StatusBadRequest, "media_url not configured for this camera")
+		return
+	}
+
+	// Heartbeat 호출 (5초 timeout)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	_, err = mediamtx.Heartbeat(ctx, camera.MediaURL, 5*time.Second)
+	if err != nil {
+		logger.GetLogger().Warnf("HeartbeatMediaMTX[%s]: heartbeat failed for %s: %v", id, camera.MediaURL, err)
+		successResponse(c, tick, map[string]any{
+			"camera_id": id,
+			"healthy":   false,
+		})
+		return
+	}
+
+	successResponse(c, tick, map[string]any{
+		"camera_id": id,
+		"healthy":   true,
 	})
 }

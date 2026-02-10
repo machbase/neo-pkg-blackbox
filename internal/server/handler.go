@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
@@ -52,21 +53,23 @@ type cameraProcess struct {
 
 // Handler handles API requests.
 type Handler struct {
-	machbase      *db.Machbase
-	watcher       Watcher // watcher interface for dynamic watch management
-	dataDir       string
-	mvsDir        string
-	cameraDir     string
-	ffmpegBinary  string
-	prefixCache   map[string]string
-	fpsCache      map[string]*int
-	cacheMu       sync.RWMutex
-	processes     map[string]*cameraProcess
-	processMu     sync.Mutex
-	edgeState     map[string]bool                  // EDGE_ONLY 이전 상태: "camera_id.rule_id" → prev_result
-	edgeMu        sync.Mutex
-	cameraConfigs map[string]*CameraCreateRequest // camera_id → full camera config 캐시
-	configMu      sync.RWMutex
+	machbase       *db.Machbase
+	watcher        Watcher // watcher interface for dynamic watch management
+	dataDir        string
+	mvsDir         string
+	cameraDir      string
+	ffmpegBinary   string
+	prefixCache    map[string]string
+	fpsCache       map[string]*int
+	cacheMu        sync.RWMutex
+	processes      map[string]*cameraProcess
+	processMu      sync.Mutex
+	edgeState      map[string]bool                  // EDGE_ONLY 이전 상태: "camera_id.rule_id" → prev_result
+	edgeMu         sync.Mutex
+	cameraConfigs  map[string]*CameraCreateRequest // camera_id → full camera config 캐시
+	configMu       sync.RWMutex
+	detectObjects  []string // 감지 가능한 객체 목록 캐시
+	detectObjectMu sync.RWMutex
 }
 
 // Watcher interface for adding/removing file system watches dynamically
@@ -76,7 +79,7 @@ type Watcher interface {
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(machbase *db.Machbase, watcher Watcher, dataDir, mvsDir, cameraDir, ffmpegBinary string) *Handler {
+func NewHandler(machbase *db.Machbase, watcher Watcher, dataDir, mvsDir, cameraDir, ffmpegBinary, objectFile string) *Handler {
 	if dataDir == "" {
 		dataDir = "/data"
 	}
@@ -94,6 +97,17 @@ func NewHandler(machbase *db.Machbase, watcher Watcher, dataDir, mvsDir, cameraD
 		cameraConfigs: make(map[string]*CameraCreateRequest),
 	}
 	h.loadAllCameraConfigs()
+
+	// Load detect objects from file, fallback to defaults if failed
+	if objectFile != "" {
+		if err := h.loadDetectObjects(objectFile); err != nil {
+			logger.GetLogger().Warnf("failed to load detect objects from %s: %v, using defaults", objectFile, err)
+			h.detectObjects = []string{"person", "car", "truck", "bus", "train", "cat"}
+		}
+	} else {
+		h.detectObjects = []string{"person", "car", "truck", "bus", "train", "cat"}
+	}
+
 	return h
 }
 
@@ -196,6 +210,49 @@ func (h *Handler) Shutdown() {
 		logger.GetLogger().Infof("[camera:%s] shutting down ffmpeg (PID: %d)", id, proc.cmd.Process.Pid)
 		proc.cancel()
 	}
+}
+
+// loadDetectObjects loads detect objects from object.txt file.
+// File format: []string{"person", "car", ...}
+func (h *Handler) loadDetectObjects(objectFile string) error {
+	data, err := os.ReadFile(objectFile)
+	if err != nil {
+		return fmt.Errorf("failed to read object.txt: %w", err)
+	}
+
+	content := string(data)
+	// Remove []string{ prefix and } suffix
+	content = strings.TrimSpace(content)
+	content = strings.TrimPrefix(content, "[]string{")
+	content = strings.TrimSuffix(content, "}")
+	content = strings.TrimSpace(content)
+
+	// Split by comma and clean each item
+	parts := strings.Split(content, ",")
+	objects := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		part = strings.Trim(part, `"`)
+		if part != "" {
+			objects = append(objects, part)
+		}
+	}
+
+	h.detectObjectMu.Lock()
+	h.detectObjects = objects
+	h.detectObjectMu.Unlock()
+
+	logger.GetLogger().Infof("[detect_objects] loaded %d objects from %s", len(objects), objectFile)
+	return nil
+}
+
+// getDetectObjects returns cached detect objects list.
+func (h *Handler) getDetectObjects() []string {
+	h.detectObjectMu.RLock()
+	defer h.detectObjectMu.RUnlock()
+	result := make([]string, len(h.detectObjects))
+	copy(result, h.detectObjects)
+	return result
 }
 
 // errorResponse sends a standardized error response.

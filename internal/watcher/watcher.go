@@ -214,17 +214,30 @@ func (w *Watcher) prepare() ([]WatcherRule, []RuleFailure) {
 			continue
 		}
 
-		// Set paths:
-		// - Empty: use DataDir/{camera}/in|out
+		// Validate required paths
+		if config.OutputDir == "" {
+			reason := fmt.Errorf("output_dir is empty")
+			logger.GetLogger().Infof("watcher rule[%d] camera=%q: output_dir is required", i, config.Name)
+			failed = append(failed, RuleFailure{id: i, Rule: WatcherRule{CameraID: config.Name}, Err: reason})
+			continue
+		}
+		if config.ArchiveDir == "" {
+			reason := fmt.Errorf("archive_dir is empty")
+			logger.GetLogger().Infof("watcher rule[%d] camera=%q: archive_dir is required", i, config.Name)
+			failed = append(failed, RuleFailure{id: i, Rule: WatcherRule{CameraID: config.Name}, Err: reason})
+			continue
+		}
+
+		// Resolve paths:
 		// - Absolute path: use as-is
-		// - Relative path: treat as empty (use DataDir)
+		// - Relative path: join with DataDir
 		sourceDir := config.OutputDir
-		if sourceDir == "" || !filepath.IsAbs(sourceDir) {
-			sourceDir = filepath.Join(w.DataDir, config.Name, "in")
+		if !filepath.IsAbs(sourceDir) {
+			sourceDir = filepath.Join(w.DataDir, sourceDir)
 		}
 		targetDir := config.ArchiveDir
-		if targetDir == "" || !filepath.IsAbs(targetDir) {
-			targetDir = filepath.Join(w.DataDir, config.Name, "out")
+		if !filepath.IsAbs(targetDir) {
+			targetDir = filepath.Join(w.DataDir, targetDir)
 		}
 
 		rule := WatcherRule{
@@ -233,14 +246,6 @@ func (w *Watcher) prepare() ([]WatcherRule, []RuleFailure) {
 			SourceDir: sourceDir,
 			TargetDir: targetDir,
 			Ext:       ".mpd",
-		}
-
-		// Validation
-		if rule.TargetDir == "" {
-			reason := fmt.Errorf("target_dir is empty")
-			logger.GetLogger().Infof("watcher rule[%d] camera=%q: target_dir is empty (source_dir=%q)", i, config.Name, rule.SourceDir)
-			failed = append(failed, RuleFailure{id: i, Rule: rule, Err: reason})
-			continue
 		}
 		if err := os.MkdirAll(rule.SourceDir, 0o755); err != nil {
 			reason := fmt.Errorf("failed to mkdir source_dir=%q: %v", rule.SourceDir, err)

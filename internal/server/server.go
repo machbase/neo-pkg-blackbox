@@ -49,10 +49,13 @@ func New(cfg config.ServerConfig, machbase *db.Machbase, watcher Watcher, ffmpeg
 		ffBinary = ffmpegBinary[0]
 	}
 
+	// object.txt path (BaseDir/object.txt)
+	objectFile := filepath.Join(cfg.BaseDir, "object.txt")
+
 	s := &Server{
 		cfg:     cfg,
 		engine:  engine,
-		handler: NewHandler(machbase, watcher, cfg.DataDir, cfg.MvsDir, cfg.CameraDir, ffBinary),
+		handler: NewHandler(machbase, watcher, cfg.DataDir, cfg.MvsDir, cfg.CameraDir, ffBinary, objectFile),
 	}
 	s.routes()
 
@@ -72,6 +75,7 @@ func (s *Server) routes() {
 	// ==================================================================
 	// 목록
 	api.GET("/tables", s.handler.GetTables)
+	api.POST("/table", s.handler.CreateTable) // Create TAG table
 	api.GET("/models", s.handler.GetModels)
 	api.GET("/detect_objects", s.handler.GetDetectObjects)
 	api.GET("/cameras", s.handler.GetCameras)
@@ -105,6 +109,9 @@ func (s *Server) routes() {
 	// Camera Status Monitoring
 	api.GET("/camera/:id/status", s.handler.GetCameraStatus) // O
 	api.GET("/cameras/health", s.handler.GetCamerasHealth)   // O
+
+	// Media Server (MediaMTX)
+	api.GET("/media/:id/heartbeat", s.handler.HeartbeatMediaMTX) // MediaMTX heartbeat
 
 	// Camera Events Query
 	api.GET("/camera_events", s.handler.GetCameraEvents)

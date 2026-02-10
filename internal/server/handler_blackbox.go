@@ -95,11 +95,11 @@ func (h *Handler) GetModels(c *gin.Context) {
 }
 
 // GetDetectObjects handles GET /api/detect_objects.
-// 감지 가능한 객체 목록을 반환 (하드코딩).
+// 감지 가능한 객체 목록을 반환 (object.txt에서 로드).
 func (h *Handler) GetDetectObjects(c *gin.Context) {
 	tick := time.Now()
 
-	objects := []string{"person", "car", "truck", "bus", "train", "cat"}
+	objects := h.getDetectObjects()
 
 	successResponse(c, tick, map[string]any{
 		"detect_objects": objects,
