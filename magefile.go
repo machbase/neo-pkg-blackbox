@@ -22,6 +22,7 @@ const (
 	configFile = "internal/config/config.yaml"
 	distDir    = "dist"
 	binDir     = "bin"
+	tmpDir     = "tmp"
 )
 
 // Build builds the blackbox-backend binary
@@ -29,7 +30,12 @@ func Build() error {
 	mg.Deps(InstallDeps)
 	fmt.Println("Building...")
 
-	output := binaryName
+	// Create tmp directory if it doesn't exist
+	if err := os.MkdirAll(tmpDir, 0755); err != nil {
+		return fmt.Errorf("failed to create tmp directory: %w", err)
+	}
+
+	output := filepath.Join(tmpDir, binaryName)
 	if runtime.GOOS == "windows" {
 		output += ".exe"
 	}
@@ -42,9 +48,9 @@ func Run() error {
 	mg.Deps(Build)
 	fmt.Printf("Running with config: %s\n", configFile)
 
-	binary := "./" + binaryName
+	binary := filepath.Join(tmpDir, binaryName)
 	if runtime.GOOS == "windows" {
-		binary = binaryName + ".exe"
+		binary += ".exe"
 	}
 
 	return sh.RunV(binary, "-config", configFile)
@@ -67,8 +73,8 @@ func Clean() error {
 	fmt.Println("Cleaning...")
 
 	files := []string{
-		binaryName,
-		binaryName + ".exe",
+		filepath.Join(tmpDir, binaryName),
+		filepath.Join(tmpDir, binaryName+".exe"),
 	}
 
 	for _, f := range files {
@@ -141,9 +147,9 @@ func RunWithConfig(configPath string) error {
 
 	fmt.Printf("Running with config: %s\n", absPath)
 
-	binary := "./" + binaryName
+	binary := filepath.Join(tmpDir, binaryName)
 	if runtime.GOOS == "windows" {
-		binary = binaryName + ".exe"
+		binary += ".exe"
 	}
 
 	return sh.RunV(binary, "-config", absPath)
@@ -193,7 +199,7 @@ func Package() error {
 	}
 
 	// Copy binary
-	binarySource := binaryName
+	binarySource := filepath.Join(tmpDir, binaryName)
 	binaryDest := filepath.Join(packageBinDir, binaryName)
 	if runtime.GOOS == "windows" {
 		binarySource += ".exe"

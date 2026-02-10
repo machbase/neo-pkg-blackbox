@@ -51,9 +51,16 @@ func (r *FFmpegRunner) Run(ctx context.Context) error {
 			defer wg.Done()
 
 			execArgs := r.buildExecArgs(cam)
-			logger.GetLogger().Debugf("FFmpeg command:\n%s\n", prettyCommand(r.cfg.Binary, execArgs))
 
-			cmd := exec.CommandContext(ctx, r.cfg.Binary, execArgs...)
+			// Resolve ffmpeg binary: use config if set, otherwise system PATH
+			ffmpegBin := "ffmpeg"
+			if r.cfg.Binary != "" {
+				ffmpegBin = r.cfg.Binary
+			}
+
+			logger.GetLogger().Debugf("FFmpeg command:\n%s\n", prettyCommand(ffmpegBin, execArgs))
+
+			cmd := exec.CommandContext(ctx, ffmpegBin, execArgs...)
 			cmd.Dir = cam.OutputDIR
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
@@ -95,10 +102,17 @@ type SegmentTiming struct {
 
 func (r *FFmpegRunner) ProbeConcatPacketTiming(ctx context.Context, initFile string, chunkFile string) (SegmentTiming, error) {
 	probeArgs := r.buildProbeArgs(initFile, chunkFile)
-	logger.GetLogger().Debugf("ffprobe command: %s\n", prettyCommand(r.cfg.Defaults.ProbeBinary, probeArgs))
+
+	// Resolve ffprobe binary: use config if set, otherwise system PATH
+	ffprobeBin := "ffprobe"
+	if r.cfg.Defaults.ProbeBinary != "" {
+		ffprobeBin = r.cfg.Defaults.ProbeBinary
+	}
+
+	logger.GetLogger().Debugf("ffprobe command: %s\n", prettyCommand(ffprobeBin, probeArgs))
 
 	var errBuf bytes.Buffer
-	cmd := exec.CommandContext(ctx, r.cfg.Defaults.ProbeBinary, probeArgs...)
+	cmd := exec.CommandContext(ctx, ffprobeBin, probeArgs...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return SegmentTiming{}, err

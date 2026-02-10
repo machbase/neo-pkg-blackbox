@@ -100,9 +100,7 @@ func (h *Handler) CreateCamera(c *gin.Context) {
 	if req.ArchiveDir == "" || !filepath.IsAbs(req.ArchiveDir) {
 		req.ArchiveDir = filepath.Join(h.dataDir, req.Name, "out")
 	}
-	if req.FFmpegCommand == "" {
-		req.FFmpegCommand = h.ffmpegBinary
-	}
+	// Note: FFmpegCommand is optional - will be resolved at runtime in EnableCamera
 
 	// Create camera data directories
 	if err := os.MkdirAll(req.OutputDir, 0755); err != nil {
@@ -492,7 +490,17 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 		return
 	}
 
-	// MVS 파일도 새 시간으로 갱신
+	// MVS 파일 갱신: 기존 파일 삭제 후 새 파일 생성
+	// 1. 기존 MVS 파일 찾아서 삭제
+	oldMvsPattern := filepath.Join(h.mvsDir, fmt.Sprintf("%s_*.mvs", id))
+	oldMvsFiles, _ := filepath.Glob(oldMvsPattern)
+	for _, oldFile := range oldMvsFiles {
+		if err := os.Remove(oldFile); err != nil {
+			logger.GetLogger().Warnf("UpdateCamera[%s]: failed to remove old mvs file %q: %v", id, oldFile, err)
+		}
+	}
+
+	// 2. 새 MVS 파일 생성
 	mvs := MvsCameraCreateRequest{
 		CameraID:      id,
 		CameraURL:     req.RtspURL,
@@ -541,6 +549,15 @@ func (h *Handler) DeleteCamera(c *gin.Context) {
 		logger.GetLogger().Errorf("DeleteCamera[%s]: failed to delete camera config file %q: %v", id, cameraPath, err)
 		errorResponse(c, tick, http.StatusInternalServerError, "failed to delete camera config file")
 		return
+	}
+
+	// MVS 파일도 삭제
+	mvsPattern := filepath.Join(h.mvsDir, fmt.Sprintf("%s_*.mvs", id))
+	mvsFiles, _ := filepath.Glob(mvsPattern)
+	for _, mvsFile := range mvsFiles {
+		if err := os.Remove(mvsFile); err != nil {
+			logger.GetLogger().Warnf("DeleteCamera[%s]: failed to remove mvs file %q: %v", id, mvsFile, err)
+		}
 	}
 
 	// Event rules 캐시 제거
@@ -601,15 +618,12 @@ func (h *Handler) EnableCamera(c *gin.Context) {
 		return
 	}
 
-	// Use per-camera paths from config (with fallback to defaults)
-	ffmpegBin := cam.FFmpegCommand
-	if ffmpegBin == "" {
+	// Resolve ffmpeg binary with priority: camera config → server config → system PATH
+	ffmpegBin := "ffmpeg" // default to system PATH
+	if cam.FFmpegCommand != "" {
+		ffmpegBin = cam.FFmpegCommand
+	} else if h.ffmpegBinary != "" {
 		ffmpegBin = h.ffmpegBinary
-	}
-	if ffmpegBin == "" {
-		logger.GetLogger().Errorf("EnableCamera[%s]: ffmpeg binary not configured", id)
-		errorResponse(c, tick, http.StatusInternalServerError, "ffmpeg binary not configured")
-		return
 	}
 
 	// Set paths:

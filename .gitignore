@@ -9,3 +9,5 @@ tmp
 .env
 logs/*
 .md
+blackbox-backend
+blackbox-backend.exe
