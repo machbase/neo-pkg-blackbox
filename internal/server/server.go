@@ -148,6 +148,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
+		s.handler.Shutdown()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), s.cfg.ShutdownTimeout())
 		defer cancel()
 		return s.http.Shutdown(shutdownCtx)

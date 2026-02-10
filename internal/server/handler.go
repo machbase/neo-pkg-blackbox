@@ -183,6 +183,21 @@ func (h *Handler) removeCameraConfigCache(cameraID string) {
 	h.configMu.Unlock()
 }
 
+// Shutdown stops all running ffmpeg processes.
+func (h *Handler) Shutdown() {
+	h.processMu.Lock()
+	procs := make(map[string]*cameraProcess, len(h.processes))
+	for k, v := range h.processes {
+		procs[k] = v
+	}
+	h.processMu.Unlock()
+
+	for id, proc := range procs {
+		logger.GetLogger().Infof("[camera:%s] shutting down ffmpeg (PID: %d)", id, proc.cmd.Process.Pid)
+		proc.cancel()
+	}
+}
+
 // errorResponse sends a standardized error response.
 func errorResponse(c *gin.Context, tick time.Time, status int, reason string) {
 	c.JSON(status, Response{
