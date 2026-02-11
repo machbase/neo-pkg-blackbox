@@ -550,10 +550,26 @@ func (h *Handler) GetDataGaps(c *gin.Context) {
 	// Generate expected intervals
 	var gaps []string
 	intervalDuration := time.Duration(req.Interval) * time.Second
-
-	// Round start time down to interval boundary (start_time이 속한 버킷부터 시작)
 	startUnix := startTime.Unix()
-	startAligned := (startUnix / int64(req.Interval)) * int64(req.Interval)
+
+	// Machbase rollup origin을 실제 데이터에서 추론
+	var startAligned int64
+	if len(data) > 0 {
+		// 첫 번째 데이터를 기준으로 rollup origin offset 계산
+		firstTime := data[0].Time.Unix()
+		originOffset := firstTime % int64(req.Interval)
+
+		// start_time을 rollup 경계로 정렬 (Machbase origin 고려)
+		delta := startUnix - originOffset
+		startAligned = (delta / int64(req.Interval)) * int64(req.Interval) + originOffset
+		if startAligned < startUnix {
+			startAligned += int64(req.Interval)
+		}
+	} else {
+		// 데이터가 없으면 Unix epoch 기준으로 계산
+		startAligned = (startUnix / int64(req.Interval)) * int64(req.Interval)
+	}
+
 	currentTime := time.Unix(startAligned, 0)
 
 	for currentTime.Before(endTime) || currentTime.Equal(endTime) {
