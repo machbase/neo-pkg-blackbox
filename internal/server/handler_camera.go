@@ -110,25 +110,15 @@ func (h *Handler) CreateCamera(c *gin.Context) {
 		return
 	}
 
-	// Validate required paths
+	// Resolve paths: 빈 값이면 기본 경로 사용
 	if req.OutputDir == "" {
-		logger.GetLogger().Errorf("CreateCamera[%s]: output_dir is required", req.Name)
-		errorResponse(c, tick, http.StatusBadRequest, "output_dir is required")
-		return
-	}
-	if req.ArchiveDir == "" {
-		logger.GetLogger().Errorf("CreateCamera[%s]: archive_dir is required", req.Name)
-		errorResponse(c, tick, http.StatusBadRequest, "archive_dir is required")
-		return
-	}
-
-	// Resolve paths:
-	// - Absolute path: use as-is
-	// - Relative path: join with data_dir
-	if !filepath.IsAbs(req.OutputDir) {
+		req.OutputDir = filepath.Join(h.dataDir, req.Name, "in")
+	} else if !filepath.IsAbs(req.OutputDir) {
 		req.OutputDir = filepath.Join(h.dataDir, req.OutputDir)
 	}
-	if !filepath.IsAbs(req.ArchiveDir) {
+	if req.ArchiveDir == "" {
+		req.ArchiveDir = filepath.Join(h.dataDir, req.Name, "out")
+	} else if !filepath.IsAbs(req.ArchiveDir) {
 		req.ArchiveDir = filepath.Join(h.dataDir, req.ArchiveDir)
 	}
 
