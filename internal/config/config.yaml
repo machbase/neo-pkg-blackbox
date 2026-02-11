@@ -8,13 +8,14 @@ machbase:
   host: 127.0.0.1
   port: 5654
 
+mediamtx:
+  host: 127.0.0.1
+  port: 9997  # MediaMTX HTTP API 포트
+
 ffmpeg:
   binary: "/home/aloha/machbase/blackbox-backend/ffmpeg"
 
   defaults:
-    input_args:
-    output_args:
-
     probe_binary: "/home/aloha/machbase/blackbox-backend/ffprobe"
     probe_args:
       - flag: v
@@ -25,40 +26,6 @@ ffmpeg:
         value: "packet=pts_time,duration_time"
       - flag: of
         value: "csv=p=0"
-
-  cameras:
-    - id: camera1
-      rtsp_url: rtsp://210.99.70.120:1935/live/cctv002.stream
-      output_dir: /data/camera1/in
-      output_name: manifest.mpd
-      input_args:
-        - flag: rtsp_transport
-          value: "tcp"
-        - flag: rtsp_flags
-          value: "prefer_tcp"
-        - flag: buffer_size
-          value: "10485760"
-        - flag: max_delay
-          value: "5000000"
-        - flag: probesize
-          value: "10000000"
-        - flag: analyzeduration
-          value: "10000000"
-        - flag: use_wallclock_as_timestamps
-          value: "1"
-      mid_args:
-        - flag: c:v
-          value: "copy"
-      output_args:
-        - flag: f
-          value: dash
-        - flag: seg_duration
-          value: "5"
-        - flag: use_template
-          value: "0"
-        - flag: use_timeline
-          value: "0"
-      extra_args: []
 
 # 로그 설정 (logrus + lumberjack)
 log:

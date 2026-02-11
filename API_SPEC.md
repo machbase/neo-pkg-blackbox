@@ -73,11 +73,11 @@ Request:
 
     "ffmpeg_command": "string",           // ffmpeg 실행 경로 (선택)
                                           // 빈 값 시 서버 기본값 사용
-    "output_dir": "string",               // ffmpeg 출력 디렉토리 (선택)
-                                          // 빈 값 또는 상대경로 시: {data_dir}/{name}/in
+    "output_dir": "string",               // required - ffmpeg 출력 디렉토리
+                                          // 상대경로 시: {data_dir}/{output_dir}
                                           // 절대경로(/로 시작) 시: 그대로 사용
-    "archive_dir": "string",              // watcher 아카이브 디렉토리 (선택)
-                                          // 빈 값 또는 상대경로 시: {data_dir}/{name}/out
+    "archive_dir": "string",              // required - watcher 아카이브 디렉토리
+                                          // 상대경로 시: {data_dir}/{archive_dir}
                                           // 절대경로(/로 시작) 시: 그대로 사용
 
     "ffmpeg_options": [                   // []ReqKV - FFmpeg 옵션 배열
@@ -315,6 +315,26 @@ Response:
 
 ---
 
+## GET /api/media/heartbeat
+
+MediaMTX 미디어 서버 헬스 체크 (config.yaml의 mediamtx 설정 사용)
+
+Response:
+```json
+{
+    "healthy": true,                      // bool - MediaMTX 서버 상태
+    "host": "string",                     // MediaMTX 서버 호스트
+    "port": 0                             // int - MediaMTX HTTP API 포트
+}
+```
+
+Note:
+- config.yaml의 `mediamtx.host`와 `mediamtx.port` 설정을 사용하여 MediaMTX HTTP API (기본: http://127.0.0.1:9997)에 연결
+- 5초 timeout으로 heartbeat 요청 수행
+- 응답이 없거나 오류 발생 시 `healthy: false` 반환
+
+---
+
 ## GET /api/event_rule/:camera_id
 
 특정 카메라의 이벤트 규칙 목록 조회
@@ -432,6 +452,9 @@ Query Parameters:
 Response:
 ```json
 {
+    "camera_id": "string",                // 조회한 카메라 ID
+    "table": "string",                    // 이벤트 테이블명 ({table}_event)
+    "count": 0,                           // int - 이벤트 개수
     "events": [                           // 이벤트 로그 배열
         {
             "name": "string",             // 이벤트 이름 (camera_id.rule_id 형식)

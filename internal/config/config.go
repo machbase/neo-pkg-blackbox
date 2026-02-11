@@ -10,6 +10,7 @@ type AppConfig struct {
 	FFmpeg   FFmpegConfig   `yaml:"ffmpeg"`
 	Server   ServerConfig   `yaml:"server"`
 	Machbase MachbaseConfig `yaml:"machbase"`
+	Mediamtx MediamtxConfig `yaml:"mediamtx"`
 	Log      LogConfig      `yaml:"log"`
 }
 
@@ -45,7 +46,7 @@ func Load(path string) (*AppConfig, error) {
 }
 
 func applyDefaults(cfg *AppConfig) {
-
+	cfg.Mediamtx.ApplyDefaults()
 }
 
 func validate(cfg *AppConfig) error {

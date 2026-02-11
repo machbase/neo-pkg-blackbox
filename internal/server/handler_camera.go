@@ -814,6 +814,28 @@ func (h *Handler) EnableCamera(c *gin.Context) {
 		return
 	}
 
+	// MVS 파일 생성 (detection 프로그램이 활성 카메라를 인식하도록)
+	if err := os.MkdirAll(h.mvsDir, 0755); err != nil {
+		logger.GetLogger().Warnf("EnableCamera[%s]: failed to create mvs directory: %v", id, err)
+	} else {
+		mvs := MvsCameraCreateRequest{
+			CameraID:      id,
+			CameraURL:     cam.RtspURL,
+			ModelID:       cam.ModelID,
+			DetectObjects: cam.DetectObjects,
+		}
+		mvsJSON, err := json.MarshalIndent(mvs, "", "  ")
+		if err != nil {
+			logger.GetLogger().Warnf("EnableCamera[%s]: failed to marshal mvs data: %v", id, err)
+		} else {
+			mvsFileName := fmt.Sprintf("%s_%d_%d.mvs", id, cam.ModelID, time.Now().Unix())
+			mvsPath := filepath.Join(h.mvsDir, mvsFileName)
+			if err := os.WriteFile(mvsPath, mvsJSON, 0644); err != nil {
+				logger.GetLogger().Warnf("EnableCamera[%s]: failed to write mvs file: %v", id, err)
+			}
+		}
+	}
+
 	// 프로세스 종료 감시 (비동기)
 	go func() {
 		err := cmd.Wait()
@@ -867,6 +889,15 @@ func (h *Handler) DisableCamera(c *gin.Context) {
 	if err := h.watcher.RemoveWatch(c.Request.Context(), id); err != nil {
 		logger.GetLogger().Warnf("[camera:%s] failed to remove watcher: %v", id, err)
 		// 에러가 발생해도 계속 진행 (이미 제거되었을 수 있음)
+	}
+
+	// MVS 파일 삭제 (detection 프로그램이 비활성 카메라를 인식하지 않도록)
+	mvsPattern := filepath.Join(h.mvsDir, fmt.Sprintf("%s_*.mvs", id))
+	mvsFiles, _ := filepath.Glob(mvsPattern)
+	for _, mvsFile := range mvsFiles {
+		if err := os.Remove(mvsFile); err != nil {
+			logger.GetLogger().Warnf("DisableCamera[%s]: failed to remove mvs file %q: %v", id, mvsFile, err)
+		}
 	}
 
 	successResponse(c, tick, map[string]string{
@@ -1136,59 +1167,32 @@ func (h *Handler) UpdateDetectObjectsByCamera(c *gin.Context) {
 	})
 }
 
-// HeartbeatMediaMTX handles GET /api/media/:id/heartbeat.
-// MediaMTX 서버의 상태를 확인 (카메라 설정의 media_url 사용).
+// HeartbeatMediaMTX handles GET /api/media/heartbeat.
+// MediaMTX 서버의 상태를 확인 (config.yaml의 mediamtx 설정 사용).
 func (h *Handler) HeartbeatMediaMTX(c *gin.Context) {
 	tick := time.Now()
-	id := c.Param("id")
 
-	if id == "" {
-		errorResponse(c, tick, http.StatusBadRequest, "camera id is required")
-		return
-	}
-
-	// 카메라 설정 파일 읽기
-	cameraPath := filepath.Join(h.cameraDir, id+".json")
-	data, err := os.ReadFile(cameraPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			logger.GetLogger().Warnf("HeartbeatMediaMTX[%s]: camera config file not found: %s", id, cameraPath)
-			errorResponse(c, tick, http.StatusNotFound, fmt.Sprintf("camera '%s' not found", id))
-			return
-		}
-		logger.GetLogger().Errorf("HeartbeatMediaMTX[%s]: failed to read camera config: %v", id, err)
-		errorResponse(c, tick, http.StatusInternalServerError, "failed to read camera config")
-		return
-	}
-
-	var camera CameraCreateRequest
-	if err := json.Unmarshal(data, &camera); err != nil {
-		logger.GetLogger().Errorf("HeartbeatMediaMTX[%s]: failed to parse camera config: %v", id, err)
-		errorResponse(c, tick, http.StatusInternalServerError, "failed to parse camera config")
-		return
-	}
-
-	if camera.MediaURL == "" {
-		errorResponse(c, tick, http.StatusBadRequest, "media_url not configured for this camera")
-		return
-	}
+	// config의 mediamtx 설정으로 URL 생성
+	mediaURL := fmt.Sprintf("http://%s:%d", h.mediamtxHost, h.mediamtxPort)
 
 	// Heartbeat 호출 (5초 timeout)
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	_, err = mediamtx.Heartbeat(ctx, camera.MediaURL, 5*time.Second)
+	_, err := mediamtx.Heartbeat(ctx, mediaURL, 5*time.Second)
 	if err != nil {
-		logger.GetLogger().Warnf("HeartbeatMediaMTX[%s]: heartbeat failed for %s: %v", id, camera.MediaURL, err)
+		logger.GetLogger().Warnf("HeartbeatMediaMTX: heartbeat failed for %s: %v", mediaURL, err)
 		successResponse(c, tick, map[string]any{
-			"camera_id": id,
-			"healthy":   false,
+			"healthy": false,
+			"host":    h.mediamtxHost,
+			"port":    h.mediamtxPort,
 		})
 		return
 	}
 
 	successResponse(c, tick, map[string]any{
-		"camera_id": id,
-		"healthy":   true,
+		"healthy": true,
+		"host":    h.mediamtxHost,
+		"port":    h.mediamtxPort,
 	})
 }

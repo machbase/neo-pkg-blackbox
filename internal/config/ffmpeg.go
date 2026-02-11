@@ -8,27 +8,9 @@ type ArgKV struct {
 type FFmpegConfig struct {
 	Binary   string         `yaml:"binary"`
 	Defaults FFmpegDefaults `yaml:"defaults"`
-	Cameras  []CameraJob    `yaml:"cameras"`
 }
 
 type FFmpegDefaults struct {
-	InputArgs  []ArgKV `yaml:"input_args"`
-	OutputArgs []ArgKV `yaml:"output_args"`
-	OutputName string  `yaml:"output_name"`
-
 	ProbeBinary string  `yaml:"probe_binary"`
 	ProbeArgs   []ArgKV `yaml:"probe_args"`
-}
-
-type CameraJob struct {
-	ID        string `yaml:"id"`
-	RtspURL   string `yaml:"rtsp_url"`
-	OutputDIR string `yaml:"output_dir"`
-
-	InputArgs  []ArgKV `yaml:"input_args"`
-	MidArgs    []ArgKV `yaml:"mid_args"`
-	OutputArgs []ArgKV `yaml:"output_args"`
-	OutputName string  `yaml:"output_name"`
-
-	ExtraArgs []ArgKV `yaml:"extra_args"`
 }

@@ -346,6 +346,11 @@
                 </div>
 
                 <div class="nav-section">
+                    <h3>Media Server</h3>
+                    <div class="nav-item" data-section="media-heartbeat">MediaMTX Heartbeat</div>
+                </div>
+
+                <div class="nav-section">
                     <h3>Video Chunks</h3>
                     <div class="nav-item" data-section="time-range">시간 범위 조회</div>
                     <div class="nav-item" data-section="chunk-info">청크 정보</div>
@@ -573,6 +578,14 @@
                     <p class="help-text">모든 카메라의 상태를 한번에 확인합니다.</p>
                     <button class="btn btn-primary" onclick="getCamerasHealth()">조회하기</button>
                     <div class="response-area" id="cameras-health-response"></div>
+                </div>
+
+                <!-- MediaMTX Heartbeat Section -->
+                <div class="api-section" id="media-heartbeat">
+                    <h2><span class="method-badge method-get">GET</span> MediaMTX Heartbeat</h2>
+                    <p class="help-text">MediaMTX 미디어 서버의 상태를 확인합니다. (config.yaml의 mediamtx 설정 사용)</p>
+                    <button class="btn btn-primary" onclick="checkMediaHeartbeat()">헬스체크</button>
+                    <div class="response-area" id="media-heartbeat-response"></div>
                 </div>
 
                 <!-- Time Range Section -->
@@ -1160,6 +1173,17 @@ ${JSON.stringify(data, null, 2)}
                 showResponse('cameras-health-response', data);
             } catch (error) {
                 showResponse('cameras-health-response', { error: error.message }, true);
+            }
+        }
+
+        // MediaMTX Functions
+        async function checkMediaHeartbeat() {
+            showLoading('media-heartbeat-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/media/heartbeat`);
+                showResponse('media-heartbeat-response', data);
+            } catch (error) {
+                showResponse('media-heartbeat-response', { error: error.message }, true);
             }
         }
 

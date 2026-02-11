@@ -179,7 +179,7 @@ func Version() error {
 	return cmd.Run()
 }
 
-// Package creates a distributable package with binary, ffmpeg, ffprobe, and configs
+// Package creates a distributable package with binary and configs
 func Package() error {
 	mg.Deps(Build)
 	fmt.Println("Creating package...")
@@ -216,50 +216,6 @@ func Package() error {
 		if err := os.Chmod(binaryDest, 0755); err != nil {
 			return fmt.Errorf("failed to make binary executable: %w", err)
 		}
-	}
-
-	// Copy ffmpeg
-	ffmpegSource := "ffmpeg"
-	ffmpegDest := filepath.Join(packageBinDir, "ffmpeg")
-	if runtime.GOOS == "windows" {
-		ffmpegSource += ".exe"
-		ffmpegDest += ".exe"
-	}
-
-	if _, err := os.Stat(ffmpegSource); err == nil {
-		fmt.Printf("Copying %s to %s\n", ffmpegSource, ffmpegDest)
-		if err := sh.Copy(ffmpegDest, ffmpegSource); err != nil {
-			return fmt.Errorf("failed to copy ffmpeg: %w", err)
-		}
-		if runtime.GOOS != "windows" {
-			if err := os.Chmod(ffmpegDest, 0755); err != nil {
-				return fmt.Errorf("failed to make ffmpeg executable: %w", err)
-			}
-		}
-	} else {
-		fmt.Println("Warning: ffmpeg not found, skipping")
-	}
-
-	// Copy ffprobe
-	ffprobeSource := "ffprobe"
-	ffprobeDest := filepath.Join(packageBinDir, "ffprobe")
-	if runtime.GOOS == "windows" {
-		ffprobeSource += ".exe"
-		ffprobeDest += ".exe"
-	}
-
-	if _, err := os.Stat(ffprobeSource); err == nil {
-		fmt.Printf("Copying %s to %s\n", ffprobeSource, ffprobeDest)
-		if err := sh.Copy(ffprobeDest, ffprobeSource); err != nil {
-			return fmt.Errorf("failed to copy ffprobe: %w", err)
-		}
-		if runtime.GOOS != "windows" {
-			if err := os.Chmod(ffprobeDest, 0755); err != nil {
-				return fmt.Errorf("failed to make ffprobe executable: %w", err)
-			}
-		}
-	} else {
-		fmt.Println("Warning: ffprobe not found, skipping")
 	}
 
 	// Copy config files
@@ -303,8 +259,6 @@ Platform: %s/%s
 
 Contents:
 - bin/%s: Main application binary
-- bin/ffmpeg: FFmpeg binary
-- bin/ffprobe: FFprobe binary
 - config/: Configuration files
 
 Usage:

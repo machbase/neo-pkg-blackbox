@@ -28,7 +28,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 // New creates a new Server.
-func New(cfg config.ServerConfig, machbase *db.Machbase, watcher Watcher, ffmpegBinary ...string) (*Server, error) {
+func New(cfg config.ServerConfig, mediamtxCfg config.MediamtxConfig, machbase *db.Machbase, watcher Watcher, ffmpegBinary ...string) (*Server, error) {
 	cfg.ApplyDefaults()
 
 	if cfg.BaseDir == "" {
@@ -55,7 +55,7 @@ func New(cfg config.ServerConfig, machbase *db.Machbase, watcher Watcher, ffmpeg
 	s := &Server{
 		cfg:     cfg,
 		engine:  engine,
-		handler: NewHandler(machbase, watcher, cfg.DataDir, cfg.MvsDir, cfg.CameraDir, ffBinary, objectFile),
+		handler: NewHandler(machbase, watcher, cfg.DataDir, cfg.MvsDir, cfg.CameraDir, ffBinary, objectFile, mediamtxCfg.Host, mediamtxCfg.Port),
 	}
 	s.routes()
 
@@ -111,7 +111,7 @@ func (s *Server) routes() {
 	api.GET("/cameras/health", s.handler.GetCamerasHealth)   // O
 
 	// Media Server (MediaMTX)
-	api.GET("/media/:id/heartbeat", s.handler.HeartbeatMediaMTX) // MediaMTX heartbeat
+	api.GET("/media/heartbeat", s.handler.HeartbeatMediaMTX) // MediaMTX heartbeat
 
 	// Camera Events Query
 	api.GET("/camera_events", s.handler.GetCameraEvents)

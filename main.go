@@ -60,7 +60,7 @@ func run(c context.Context, path string) error {
 	ff := ffmpeg.New(cfg.FFmpeg, logDir)
 	w := watcher.New(neo, ff, cfg.Server.CameraDir)
 
-	svr, err := server.New(cfg.Server, neo, w, cfg.FFmpeg.Binary)
+	svr, err := server.New(cfg.Server, cfg.Mediamtx, neo, w, cfg.FFmpeg.Binary)
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
 	}

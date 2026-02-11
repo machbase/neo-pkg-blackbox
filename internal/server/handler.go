@@ -59,6 +59,8 @@ type Handler struct {
 	mvsDir         string
 	cameraDir      string
 	ffmpegBinary   string
+	mediamtxHost   string // MediaMTX 서버 호스트
+	mediamtxPort   int    // MediaMTX 서버 포트
 	prefixCache    map[string]string
 	fpsCache       map[string]*int
 	cacheMu        sync.RWMutex
@@ -79,7 +81,7 @@ type Watcher interface {
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(machbase *db.Machbase, watcher Watcher, dataDir, mvsDir, cameraDir, ffmpegBinary, objectFile string) *Handler {
+func NewHandler(machbase *db.Machbase, watcher Watcher, dataDir, mvsDir, cameraDir, ffmpegBinary, objectFile string, mediamtxHost string, mediamtxPort int) *Handler {
 	if dataDir == "" {
 		dataDir = "/data"
 	}
@@ -90,6 +92,8 @@ func NewHandler(machbase *db.Machbase, watcher Watcher, dataDir, mvsDir, cameraD
 		mvsDir:        mvsDir,
 		cameraDir:     cameraDir,
 		ffmpegBinary:  ffmpegBinary,
+		mediamtxHost:  mediamtxHost,
+		mediamtxPort:  mediamtxPort,
 		prefixCache:   make(map[string]string),
 		fpsCache:      make(map[string]*int),
 		processes:     make(map[string]*cameraProcess),
