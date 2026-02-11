@@ -1189,15 +1189,11 @@ func (h *Handler) HeartbeatMediaMTX(c *gin.Context) {
 		logger.GetLogger().Warnf("HeartbeatMediaMTX: heartbeat failed for %s: %v", mediaURL, err)
 		successResponse(c, tick, map[string]any{
 			"healthy": false,
-			"host":    h.mediamtxHost,
-			"port":    h.mediamtxPort,
 		})
 		return
 	}
 
 	successResponse(c, tick, map[string]any{
 		"healthy": true,
-		"host":    h.mediamtxHost,
-		"port":    h.mediamtxPort,
 	})
 }
