@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"blackbox-backend/internal/logger"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -97,6 +99,12 @@ func (h *Handler) PostEventRules(c *gin.Context) {
 
 	// EventRule 추가
 	camera.EventRule = append(camera.EventRule, req.Rule)
+
+	// 이벤트룰 추가 시 event 테이블 생성
+	if err := h.machbase.CreateCameraEventTable(c.Request.Context(), camera.Table); err != nil {
+		logger.GetLogger().Warnf("PostEventRules[%s]: failed to create event table (may already exist): %v", req.CameraID, err)
+		// 테이블 생성 실패해도 계속 진행 (이미 존재할 수 있음)
+	}
 
 	// 파일 저장
 	cameraJSON, err := json.MarshalIndent(camera, "", "  ")
