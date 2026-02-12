@@ -578,8 +578,13 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 	existing.DetectObjects = req.DetectObjects
 	existing.SaveObjects = req.SaveObjects
 	existing.FFmpegCommand = req.FFmpegCommand
-	existing.OutputDir = req.OutputDir
-	existing.ArchiveDir = req.ArchiveDir
+	// 빈 값이면 기존 유지 (인프라 필수 필드)
+	if req.OutputDir != "" {
+		existing.OutputDir = req.OutputDir
+	}
+	if req.ArchiveDir != "" {
+		existing.ArchiveDir = req.ArchiveDir
+	}
 	existing.FFmpegOptions = req.FFmpegOptions
 
 	cameraJSON, err := json.MarshalIndent(existing, "", "  ")

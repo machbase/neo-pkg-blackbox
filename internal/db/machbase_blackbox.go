@@ -327,13 +327,14 @@ func (m *Machbase) ChunkRecordForTime(ctx context.Context, tableName string, cam
 	// Find chunk where: chunk_start <= ts+1ms <= chunk_end
 	// +1ms buffer: 프론트(밀리초 정밀도)와 DB(나노초 정밀도) 차이를 보정
 	// 같은 밀리초 내의 나노초 차이로 인한 404를 방지
+	// where 절 위 Date trunc로
 	const msBuffer int64 = 1_000_000 // 1ms in nanoseconds
 	sql := fmt.Sprintf(
 		"select /*+ SCAN_FORWARD(%s) */ time, value, chunk_path from %s "+
 			"where name = '%s' "+
 			"and time <= %d "+
 			"and %d <= to_timestamp(time) + (value * 1000000000) "+
-			"order by time limit 1",
+			"order by time desc limit 1", // desc 추가
 		safeTable, safeTable, safeCameraID, tsNs+msBuffer, tsNs,
 	)
 
