@@ -97,9 +97,16 @@ func (h *Handler) CreateCamera(c *gin.Context) {
 	}
 
 	// Validate name (used as table name)
+	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
 		logger.GetLogger().Errorf("CreateCamera: camera name is required")
 		errorResponse(c, tick, http.StatusBadRequest, "name is required")
+		return
+	}
+	// 파일명에 문제가 되는 특수문자 검증
+	if strings.ContainsAny(req.Name, " '\"`") {
+		logger.GetLogger().Errorf("CreateCamera: invalid camera name %q (contains space or quotes)", req.Name)
+		errorResponse(c, tick, http.StatusBadRequest, "camera name cannot contain spaces or quotes")
 		return
 	}
 
