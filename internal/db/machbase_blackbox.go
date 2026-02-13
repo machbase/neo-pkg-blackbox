@@ -327,15 +327,18 @@ func (m *Machbase) ChunkRecordForTime(ctx context.Context, tableName string, cam
 	// Find chunk where: chunk_start <= ts+1ms <= chunk_end
 	// +1ms buffer: 프론트(밀리초 정밀도)와 DB(나노초 정밀도) 차이를 보정
 	// 같은 밀리초 내의 나노초 차이로 인한 404를 방지
-	// where 절 위 Date trunc로
 	const msBuffer int64 = 1_000_000 // 1ms in nanoseconds
+	// 비디오 청크 평균 길이가 5-6초, 안전 버퍼로 15초 사용
+	// 하한선(time >= ts-15초)으로 스캔 범위를 제한하여 데이터가 많을 때 성능 개선
+	const maxChunkDuration int64 = 15_000_000_000 // 15 seconds in nanoseconds
 	sql := fmt.Sprintf(
 		"select /*+ SCAN_FORWARD(%s) */ time, value, chunk_path from %s "+
 			"where name = '%s' "+
-			"and time <= %d "+
+			"and time <= %d "+ // 상한선 +1ms
+			"and time >= %d "+ // 하한선 -15ms
 			"and %d <= to_timestamp(time) + (value * 1000000000) "+
 			"order by time desc limit 1", // desc 추가
-		safeTable, safeTable, safeCameraID, tsNs+msBuffer, tsNs,
+		safeTable, safeTable, safeCameraID, tsNs+msBuffer, tsNs-maxChunkDuration, tsNs,
 	)
 
 	logger.GetLogger().Debugf("[CHUNK_QUERY] camera=%s, table=%s, ts_ns=%d", cameraID, safeTable, tsNs)
