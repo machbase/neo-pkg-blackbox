@@ -14,9 +14,10 @@ import (
 	"sync"
 	"time"
 
-	"blackbox-backend/internal/db"
-	"blackbox-backend/internal/logger"
-	"blackbox-backend/internal/watcher"
+	"neo-blackbox/internal/db"
+	"neo-blackbox/internal/ffmpeg"
+	"neo-blackbox/internal/logger"
+	"neo-blackbox/internal/watcher"
 
 	"github.com/gin-gonic/gin"
 )
@@ -52,26 +53,29 @@ type cameraProcess struct {
 
 // Handler handles API requests.
 type Handler struct {
-	machbase       *db.Machbase
-	watcher        Watcher // watcher interface for dynamic watch management
-	dataDir        string
-	logDir         string // log directory (ffmpeg logs etc.)
-	mvsDir         string
-	cameraDir      string
-	ffmpegBinary   string
-	mediamtxHost   string // MediaMTX 서버 호스트
-	mediamtxPort   int    // MediaMTX 서버 포트
-	prefixCache    map[string]string
-	fpsCache       map[string]*int
-	cacheMu        sync.RWMutex
-	processes      map[string]*cameraProcess
-	processMu      sync.Mutex
-	edgeState      map[string]bool                  // EDGE_ONLY 이전 상태: "camera_id.rule_id" → prev_result
-	edgeMu         sync.Mutex
-	cameraConfigs  map[string]*CameraCreateRequest // camera_id → full camera config 캐시
-	configMu       sync.RWMutex
-	detectObjects  []string // 감지 가능한 객체 목록 캐시
-	detectObjectMu sync.RWMutex
+	machbase             *db.Machbase
+	watcher              Watcher // watcher interface for dynamic watch management
+	dataDir              string
+	logDir               string // log directory (ffmpeg logs etc.)
+	mvsDir               string
+	cameraDir            string
+	ffmpegBinary         string
+	ffRunner             *ffmpeg.FFmpegRunner
+	mediamtxHost         string // MediaMTX 서버 호스트
+	mediamtxPort         int    // MediaMTX 서버 포트
+	prefixCache          map[string]string
+	fpsCache             map[string]*int
+	cacheMu              sync.RWMutex
+	processes            map[string]*cameraProcess
+	processMu            sync.Mutex
+	edgeState            map[string]bool // EDGE_ONLY 이전 상태: "camera_id.rule_id" → prev_result
+	edgeMu               sync.Mutex
+	cameraConfigs        map[string]*CameraCreateRequest // camera_id → full camera config 캐시
+	configMu             sync.RWMutex
+	detectObjects        []string // 감지 가능한 객체 목록 캐시
+	detectObjectMu       sync.RWMutex
+	lastEventQueryTime   int64 // 마지막 이벤트 조회 시간 (nanoseconds)
+	lastEventQueryTimeMu sync.Mutex
 }
 
 // Watcher interface for adding/removing file system watches dynamically
@@ -81,7 +85,7 @@ type Watcher interface {
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(machbase *db.Machbase, watcher Watcher, dataDir, logDir, mvsDir, cameraDir, ffmpegBinary string, mediamtxHost string, mediamtxPort int) *Handler {
+func NewHandler(machbase *db.Machbase, watcher Watcher, ffRunner *ffmpeg.FFmpegRunner, dataDir, logDir, mvsDir, cameraDir, ffmpegBinary string, mediamtxHost string, mediamtxPort int) *Handler {
 	if dataDir == "" {
 		dataDir = "/data"
 	}
@@ -91,6 +95,7 @@ func NewHandler(machbase *db.Machbase, watcher Watcher, dataDir, logDir, mvsDir,
 	h := &Handler{
 		machbase:      machbase,
 		watcher:       watcher,
+		ffRunner:      ffRunner,
 		dataDir:       dataDir,
 		logDir:        logDir,
 		mvsDir:        mvsDir,

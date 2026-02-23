@@ -400,6 +400,7 @@
                     <div class="nav-item" data-section="camera-disable">카메라 비활성화</div>
                     <div class="nav-item" data-section="camera-status">카메라 상태</div>
                     <div class="nav-item" data-section="cameras-health">전체 헬스체크</div>
+                    <div class="nav-item" data-section="camera-test">연결 테스트</div>
                 </div>
 
                 <div class="nav-section">
@@ -434,6 +435,7 @@
                     <div class="nav-item" data-section="event-rule-update">규칙 수정</div>
                     <div class="nav-item" data-section="event-rule-delete">규칙 삭제</div>
                     <div class="nav-item" data-section="camera-events">이벤트 로그 조회</div>
+                    <div class="nav-item" data-section="camera-events-count">이벤트 개수 조회</div>
                 </div>
 
                 <div class="nav-section">
@@ -654,6 +656,18 @@
                     <p class="help-text">모든 카메라의 상태를 한번에 확인합니다.</p>
                     <button class="btn btn-primary" onclick="getCamerasHealth()">조회하기</button>
                     <div class="response-area" id="cameras-health-response"></div>
+                </div>
+
+                <!-- Camera Connection Test Section -->
+                <div class="api-section" id="camera-test">
+                    <h2><span class="method-badge method-post">POST</span> 카메라 연결 테스트</h2>
+                    <p class="help-text">카메라의 RTSP URL에 ffprobe로 연결을 시도합니다. 최대 ~5초 소요됩니다.</p>
+                    <div class="form-group">
+                        <label>Camera ID *</label>
+                        <input type="text" id="test-camera-id" placeholder="camera1" />
+                    </div>
+                    <button class="btn btn-primary" onclick="testCameraConnection()">연결 테스트</button>
+                    <div class="response-area" id="camera-test-response"></div>
                 </div>
 
                 <!-- MediaMTX Heartbeat Section -->
@@ -913,10 +927,10 @@
                 <!-- Camera Events Section -->
                 <div class="api-section" id="camera-events">
                     <h2><span class="method-badge method-get">GET</span> 이벤트 로그 조회</h2>
-                    <p class="help-text">카메라 이벤트 테이블({table}_event)을 시간 범위로 조회합니다.</p>
+                    <p class="help-text">카메라 이벤트 테이블({table}_event)을 시간 범위로 조회합니다. Camera ID 미입력 시 전체 카메라 조회.</p>
                     <div class="form-group">
-                        <label>Camera ID *</label>
-                        <input type="text" id="camera-events-camera" placeholder="camera1" />
+                        <label>Camera ID</label>
+                        <input type="text" id="camera-events-camera" placeholder="camera1 (미입력 시 전체 조회)" />
                     </div>
                     <div class="form-group">
                         <label>Start Time (Unix nanoseconds) *</label>
@@ -930,8 +944,40 @@
                         </div>
                         <p class="help-text">현재 시간 버튼: Start = 현재, End = 5초 후</p>
                     </div>
+                    <div class="form-group">
+                        <label>Event Name</label>
+                        <input type="text" id="camera-events-name" placeholder="camera1.rule-1 (camera_id.rule_id 형식)" />
+                    </div>
+                    <div class="form-group">
+                        <label>Event Type</label>
+                        <select id="camera-events-type">
+                            <option value="">전체</option>
+                            <option value="MATCH">MATCH (2)</option>
+                            <option value="TRIGGER">TRIGGER (1)</option>
+                            <option value="RESOLVE">RESOLVE (0)</option>
+                            <option value="ERROR">ERROR (-1)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="display: flex; gap: 15px;">
+                        <div style="flex: 1;">
+                            <label>Size (페이지당 건수)</label>
+                            <input type="number" id="camera-events-size" placeholder="100" />
+                        </div>
+                        <div style="flex: 1;">
+                            <label>Page (페이지 번호)</label>
+                            <input type="number" id="camera-events-page" placeholder="1" min="1" />
+                        </div>
+                    </div>
                     <button class="btn btn-primary" onclick="getCameraEvents()">조회하기</button>
                     <div class="response-area" id="camera-events-response"></div>
+                </div>
+
+                <!-- Camera Events Count Section -->
+                <div class="api-section" id="camera-events-count">
+                    <h2><span class="method-badge method-get">GET</span> 이벤트 개수 조회</h2>
+                    <p class="help-text">마지막 이벤트 조회 이후 새로 발생한 이벤트 개수를 반환합니다. 이벤트 로그를 한 번도 조회하지 않은 경우 0을 반환합니다.</p>
+                    <button class="btn btn-primary" onclick="getCameraEventCount()">조회하기</button>
+                    <div class="response-area" id="camera-events-count-response"></div>
                 </div>
 
                 <!-- AI Result Section -->
@@ -1381,6 +1427,38 @@ ${JSON.stringify(data, null, 2)}
             }
         }
 
+        async function testCameraConnection() {
+            const id = document.getElementById('test-camera-id').value.trim();
+            if (!id) {
+                alert('Camera ID를 입력해주세요.');
+                return;
+            }
+            const container = document.getElementById('camera-test-response');
+            container.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>연결 테스트 중... (최대 5초)</p>
+                </div>
+            `;
+            try {
+                const data = await apiRequest(`${API_BASE}/camera/${id}/test`, 'POST');
+                const ok = data.data && data.data.ok;
+                container.innerHTML = `
+                    <h3>응답 결과</h3>
+                    <div class="response-box ${ok ? 'success' : 'error'}">
+${JSON.stringify(data, null, 2)}
+                    </div>
+                `;
+            } catch (error) {
+                container.innerHTML = `
+                    <h3>응답 결과</h3>
+                    <div class="response-box error">
+${JSON.stringify({ error: error.message }, null, 2)}
+                    </div>
+                `;
+            }
+        }
+
         // MediaMTX Functions
         async function checkMediaHeartbeat() {
             showLoading('media-heartbeat-response');
@@ -1780,16 +1858,43 @@ ${JSON.stringify(data, null, 2)}
 
         // Camera Events Function
         async function getCameraEvents() {
-            const cameraId = document.getElementById('camera-events-camera').value;
-            const startTime = document.getElementById('camera-events-start').value;
-            const endTime = document.getElementById('camera-events-end').value;
+            const cameraId = document.getElementById('camera-events-camera').value.trim();
+            const startTime = document.getElementById('camera-events-start').value.trim();
+            const endTime = document.getElementById('camera-events-end').value.trim();
+            const eventName = document.getElementById('camera-events-name').value.trim();
+            const eventType = document.getElementById('camera-events-type').value;
+            const size = document.getElementById('camera-events-size').value.trim();
+            const page = document.getElementById('camera-events-page').value.trim();
+
+            if (!startTime || !endTime) {
+                alert('Start Time과 End Time은 필수입니다.');
+                return;
+            }
+
+            let url = `${API_BASE}/camera_events?start_time=${startTime}&end_time=${endTime}`;
+            if (cameraId) url += `&camera_id=${encodeURIComponent(cameraId)}`;
+            if (eventName) url += `&event_name=${encodeURIComponent(eventName)}`;
+            if (eventType) url += `&event_type=${encodeURIComponent(eventType)}`;
+            if (size) url += `&size=${size}`;
+            if (page) url += `&page=${page}`;
 
             showLoading('camera-events-response');
             try {
-                const data = await apiRequest(`${API_BASE}/camera_events?camera_id=${cameraId}&start_time=${startTime}&end_time=${endTime}`);
+                const data = await apiRequest(url);
                 showResponse('camera-events-response', data);
             } catch (error) {
                 showResponse('camera-events-response', { error: error.message }, true);
+            }
+        }
+
+        // Camera Events Count Function
+        async function getCameraEventCount() {
+            showLoading('camera-events-count-response');
+            try {
+                const data = await apiRequest(`${API_BASE}/camera_events/count`);
+                showResponse('camera-events-count-response', data);
+            } catch (error) {
+                showResponse('camera-events-count-response', { error: error.message }, true);
             }
         }
 
