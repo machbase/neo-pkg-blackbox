@@ -71,6 +71,8 @@ func New(cfg config.ServerConfig, mediamtxCfg config.MediamtxConfig, logDir stri
 func (s *Server) routes() {
 	api := s.engine.Group("/api")
 
+	api.GET("/ping", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
+
 	// ==================================================================
 	// 목록
 	api.GET("/tables", s.handler.GetTables)

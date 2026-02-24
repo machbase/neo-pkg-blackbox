@@ -10,10 +10,12 @@ import (
 
 	"path/filepath"
 
+	"neo-blackbox/internal/ai"
 	"neo-blackbox/internal/config"
 	"neo-blackbox/internal/db"
 	"neo-blackbox/internal/ffmpeg"
 	"neo-blackbox/internal/logger"
+	"neo-blackbox/internal/mediamtx"
 	"neo-blackbox/internal/server"
 	"neo-blackbox/internal/watcher"
 
@@ -73,7 +75,18 @@ func run(c context.Context, path string) error {
 		return fmt.Errorf("create server: %w", err)
 	}
 
+	mediamtxRunner := mediamtx.New(mediamtx.Config{Binary: cfg.Mediamtx.Binary}, logDir)
+	aiMgr := ai.New(cfg.AI, logDir)
+
 	g, gctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		return mediamtxRunner.Run(gctx)
+	})
+
+	g.Go(func() error {
+		return aiMgr.Run(gctx)
+	})
 
 	g.Go(func() error {
 		return w.Run(gctx)

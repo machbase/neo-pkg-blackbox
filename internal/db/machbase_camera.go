@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -43,6 +44,23 @@ func (m *Machbase) CreateCameraEventTable(ctx context.Context, tableName string)
 	}
 
 	return nil
+}
+
+// TableExists returns true if a TAG table with the given name exists.
+func (m *Machbase) TableExists(ctx context.Context, tableName string) (bool, error) {
+	sql := fmt.Sprintf("SELECT COUNT(*) as CNT FROM M$SYS_TABLES WHERE NAME = '%s' AND TYPE = 6",
+		escapeSQLLiteral(strings.ToUpper(tableName)))
+	resp, err := m.Query(ctx, sql)
+	if err != nil {
+		return false, err
+	}
+	var rows []struct {
+		Count int64 `json:"CNT"`
+	}
+	if err := json.Unmarshal(resp.Data.Rows, &rows); err != nil {
+		return false, err
+	}
+	return len(rows) > 0 && rows[0].Count > 0, nil
 }
 
 // CreateCameraLogTable creates {table}_log table.

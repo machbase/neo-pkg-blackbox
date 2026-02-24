@@ -34,6 +34,19 @@ func (h *Handler) GetCameras(c *gin.Context) {
 		return
 	}
 
+	ctx := c.Request.Context()
+
+	// 존재하는 테이블 목록을 한 번만 조회 (N번 쿼리 대신 1번)
+	existingTables, err := h.machbase.ListTables(ctx)
+	tableSet := make(map[string]bool, len(existingTables))
+	if err != nil {
+		logger.GetLogger().Warnf("GetCameras: failed to list tables, skipping orphan check: %v", err)
+	} else {
+		for _, t := range existingTables {
+			tableSet[strings.ToLower(t)] = true
+		}
+	}
+
 	var cameraList []Camera
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -43,8 +56,28 @@ func (h *Handler) GetCameras(c *gin.Context) {
 		if !strings.HasSuffix(name, ".json") {
 			continue
 		}
-		// Remove .json suffix to get camera name
 		cameraName := strings.TrimSuffix(name, ".json")
+
+		// 카메라 config에서 table 필드 읽기
+		cfg := h.getCameraConfig(cameraName)
+		if cfg == nil {
+			continue
+		}
+
+		// 테이블 목록 조회에 성공했고, 테이블이 없으면 고아 설정파일 제거
+		if err == nil && !tableSet[strings.ToLower(cfg.Table)] {
+			logger.GetLogger().Warnf("GetCameras[%s]: table %q not found, removing orphaned config", cameraName, cfg.Table)
+			cameraPath := filepath.Join(h.cameraDir, cameraName+".json")
+			_ = os.Remove(cameraPath)
+			mvsPattern := filepath.Join(h.mvsDir, fmt.Sprintf("%s_*.mvs", cameraName))
+			mvsFiles, _ := filepath.Glob(mvsPattern)
+			for _, f := range mvsFiles {
+				_ = os.Remove(f)
+			}
+			h.removeCameraConfigCache(cameraName)
+			continue
+		}
+
 		cameraList = append(cameraList, Camera{ID: cameraName, Label: cameraName})
 	}
 
@@ -486,13 +519,6 @@ func (h *Handler) GetCameraEvents(c *gin.Context) {
 		allRows = append(allRows, rows...)
 	}
 
-	// 여러 테이블 결과를 시간순 정렬
-	if len(tables) > 1 {
-		sort.Slice(allRows, func(i, j int) bool {
-			return allRows[i].Time.Before(allRows[j].Time)
-		})
-	}
-
 	type eventRow struct {
 		Name               string  `json:"name"`
 		Time               string  `json:"time"`
@@ -606,7 +632,7 @@ func paginationValid(size int, page int) (int, int) {
 		page = page - 1
 	}
 	if size == 0 {
-		return 100, size * page
+		return 100, 100 * page
 	}
 	return size, size * page
 }

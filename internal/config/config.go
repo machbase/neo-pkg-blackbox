@@ -11,6 +11,7 @@ type AppConfig struct {
 	Server   ServerConfig   `yaml:"server"`
 	Machbase MachbaseConfig `yaml:"machbase"`
 	Mediamtx MediamtxConfig `yaml:"mediamtx"`
+	AI       AIConfig       `yaml:"ai"`
 	Log      LogConfig      `yaml:"log"`
 }
 

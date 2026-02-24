@@ -40,8 +40,7 @@ type MvsCameraCreateRequest struct {
 
 // 이 구조체는 테이블이 아닌 파일로 저장이됨, JSON형식
 type CameraCreateRequest struct {
-	Enabled bool   `json:"enabled"`
-	Table   string `json:"table" binding:"required"`
+	Table string `json:"table" binding:"required"`
 	Name    string `json:"name" binding:"required"`
 	Desc    string `json:"desc"`
 
@@ -63,8 +62,7 @@ type CameraCreateRequest struct {
 }
 
 type CameraUpdateRequest struct {
-	Enabled bool   `json:"enabled"`
-	Desc    string `json:"desc"`
+	Desc string `json:"desc"`
 
 	RtspURL   string `json:"rtsp_url"`
 	WebRTCURL string `json:"webrtc_url"`
@@ -79,6 +77,9 @@ type CameraUpdateRequest struct {
 	ArchiveDir    string `json:"archive_dir"`
 
 	FFmpegOptions []ReqKV `json:"ffmpeg_options"`
+
+	// nil이면 기존 event_rule 유지, 빈 배열([])이면 모든 룰 삭제
+	EventRule *[]EventRule `json:"event_rule"`
 }
 
 type ReqKV struct {
@@ -158,7 +159,6 @@ func (h *Handler) CreateCamera(c *gin.Context) {
 		return
 	}
 
-	req.Enabled = true
 	cameraJSON, err := json.MarshalIndent(req, "", "  ")
 	if err != nil {
 		logger.GetLogger().Errorf("CreateCamera[%s]: failed to marshal camera config: %v", req.Name, err)
@@ -587,8 +587,7 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 		return
 	}
 
-	// 기존 설정에 업데이트 필드 반영 (name, table, event_rule은 유지)
-	existing.Enabled = req.Enabled
+	// 기존 설정에 업데이트 필드 반영 (name, table은 유지)
 	existing.Desc = req.Desc
 	existing.RtspURL = req.RtspURL
 	existing.WebRTCURL = req.WebRTCURL
@@ -605,6 +604,22 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 		existing.ArchiveDir = req.ArchiveDir
 	}
 	existing.FFmpegOptions = req.FFmpegOptions
+
+	// event_rule: nil이면 기존 유지, 값이 있으면 덮어쓰기
+	if req.EventRule != nil {
+		existing.EventRule = *req.EventRule
+		// enabled 룰이 하나라도 있으면 event 테이블 생성 (IF NOT EXISTS라 중복 안전)
+		for _, rule := range existing.EventRule {
+			if rule.Enabled {
+				if err := h.machbase.CreateCameraEventTable(c.Request.Context(), existing.Table); err != nil {
+					logger.GetLogger().Errorf("UpdateCamera[%s]: failed to create event table: %v", id, err)
+					errorResponse(c, tick, http.StatusInternalServerError, fmt.Sprintf("failed to create event table: %v", err))
+					return
+				}
+				break
+			}
+		}
+	}
 
 	cameraJSON, err := json.MarshalIndent(existing, "", "  ")
 	if err != nil {
@@ -1040,9 +1055,10 @@ func buildFFmpegArgs(cam CameraCreateRequest) []string {
 		}
 	}
 
-	args := make([]string, 0, len(inputArgs)+len(outputArgs)+4)
+	args := make([]string, 0, len(inputArgs)+len(outputArgs)+5)
 	args = append(args, inputArgs...)
 	args = append(args, "-i", cam.RtspURL)
+	args = append(args, "-an") // 오디오 트랙 제외 (비디오 전용)
 	args = append(args, outputArgs...)
 
 	args = append(args, "manifest.mpd")

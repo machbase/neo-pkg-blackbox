@@ -10,8 +10,9 @@ machbase:
   timeout_seconds: 30
 
 mediamtx:
+  binary: ""    # MediaMTX 바이너리 경로 (비어있으면 외부 서버 사용)
   host: 127.0.0.1
-  port: 9997  # MediaMTX HTTP API 포트
+  port: 9997    # MediaMTX HTTP API 포트
 
 ffmpeg:
   binary: "/home/aloha/machbase/neo-blackbox/ffmpeg"
@@ -27,6 +28,10 @@ ffmpeg:
         value: "packet=pts_time,duration_time"
       - flag: of
         value: "csv=p=0"
+
+ai:
+  binary: ""      # AI manager 바이너리 경로 (비어있으면 비활성화)
+  config_file: "" # AI manager config.json 경로
 
 # 로그 설정 (logrus + lumberjack)
 log:

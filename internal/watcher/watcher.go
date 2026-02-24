@@ -172,7 +172,6 @@ type RuleFailure struct {
 func (w *Watcher) prepare() ([]WatcherRule, []RuleFailure) {
 	// 카메라 설정 파일들을 읽어서 WatcherRule 생성
 	type CameraConfig struct {
-		Enabled    bool   `json:"enabled"`
 		Table      string `json:"table"`
 		Name       string `json:"name"`
 		OutputDir  string `json:"output_dir"`
@@ -205,12 +204,6 @@ func (w *Watcher) prepare() ([]WatcherRule, []RuleFailure) {
 		var config CameraConfig
 		if err := json.Unmarshal(data, &config); err != nil {
 			logger.GetLogger().Warnf("Failed to parse camera config %q: %v", filePath, err)
-			continue
-		}
-
-		// enabled가 아니면 스킵
-		if !config.Enabled {
-			logger.GetLogger().Debugf("Camera %q is disabled, skipping watcher", config.Name)
 			continue
 		}
 

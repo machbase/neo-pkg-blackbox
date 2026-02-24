@@ -27,6 +27,10 @@ ffmpeg:
       - flag: of
         value: "csv=p=0"
 
+ai:
+  binary: ""      # AI manager 바이너리 경로 (비어있으면 비활성화)
+  config_file: "" # AI manager config.json 경로
+
 # 로그 설정 (logrus + lumberjack)
 log:
   level: "info"  # debug, info, warn, error, fatal, panic
