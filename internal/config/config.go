@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -32,7 +33,12 @@ type LogFileConfig struct {
 }
 
 func Load(path string) (*AppConfig, error) {
-	bdata, err := os.ReadFile(path)
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+
+	bdata, err := os.ReadFile(absPath)
 	if err != nil {
 		return nil, err
 	}
@@ -43,8 +49,33 @@ func Load(path string) (*AppConfig, error) {
 	}
 
 	applyDefaults(cfg)
+	resolveRelativePaths(cfg, filepath.Dir(absPath))
 
 	return cfg, nil
+}
+
+// resolveRelativePaths resolves relative path fields in the config
+// relative to the directory of the config file itself.
+// Absolute paths are left unchanged.
+func resolveRelativePaths(cfg *AppConfig, base string) {
+	resolve := func(p string) string {
+		if p == "" || filepath.IsAbs(p) {
+			return p
+		}
+		return filepath.Join(base, p)
+	}
+
+	cfg.Server.CameraDir = resolve(cfg.Server.CameraDir)
+	cfg.Server.MvsDir = resolve(cfg.Server.MvsDir)
+	cfg.Server.DataDir = resolve(cfg.Server.DataDir)
+	cfg.Server.BaseDir = resolve(cfg.Server.BaseDir)
+	cfg.FFmpeg.Binary = resolve(cfg.FFmpeg.Binary)
+	cfg.FFmpeg.Defaults.ProbeBinary = resolve(cfg.FFmpeg.Defaults.ProbeBinary)
+	cfg.Mediamtx.Binary = resolve(cfg.Mediamtx.Binary)
+	cfg.AI.Binary = resolve(cfg.AI.Binary)
+	cfg.AI.ConfigFile = resolve(cfg.AI.ConfigFile)
+	cfg.Log.Dir = resolve(cfg.Log.Dir)
+	cfg.Log.File.Filename = resolve(cfg.Log.File.Filename)
 }
 
 func applyDefaults(cfg *AppConfig) {

@@ -1,8 +1,8 @@
 server:
   addr: 127.0.0.1:8000
-  camera_dir: "/home/aloha/machbase/neo-blackbox/tmp/cameras"
-  mvs_dir: "/home/aloha/machbase/neo-blackbox/tmp/mvs"
-  data_dir: "/home/aloha/machbase/neo-blackbox/tmp/data"
+  camera_dir: "../tmp/cameras"
+  mvs_dir: "../tmp/mvs"
+  data_dir: "../tmp/data"
 
 machbase:
   host: 127.0.0.1
@@ -10,15 +10,15 @@ machbase:
   timeout_seconds: 30
 
 mediamtx:
-  binary: ""    # MediaMTX 바이너리 경로 (비어있으면 외부 서버 사용)
+  binary: "../tools/mediamtx"  # MediaMTX 바이너리 경로 (비어있으면 외부 서버 사용)
   host: 127.0.0.1
-  port: 9997    # MediaMTX HTTP API 포트
+  port: 9997                   # MediaMTX HTTP API 포트
 
 ffmpeg:
-  binary: "/home/aloha/machbase/neo-blackbox/ffmpeg"
+  binary: "../tools/ffmpeg"
 
   defaults:
-    probe_binary: "/home/aloha/machbase/neo-blackbox/ffprobe"
+    probe_binary: "../tools/ffprobe"
     probe_args:
       - flag: v
         value: "error"
@@ -30,15 +30,15 @@ ffmpeg:
         value: "csv=p=0"
 
 ai:
-  binary: ""      # AI manager 바이너리 경로 (비어있으면 비활성화)
-  config_file: "" # AI manager config.json 경로
+  binary: ""       # AI manager 바이너리 경로 (비어있으면 비활성화)
+  config_file: ""  # AI manager config.json 경로
 
 # 로그 설정 (logrus + lumberjack)
 log:
-  dir: "/home/aloha/machbase/neo-blackbox/tmp/logs"  # 모든 로그 파일 디렉토리 (앱 로그 + ffmpeg 로그)
-  level: "info"  # debug, info, warn, error, fatal, panic
-  format: "json"  # json or text
-  output: "both"  # stdout, file, both
+  dir: "../logs"   # 모든 로그 파일 디렉토리 (앱 로그 + ffmpeg 로그)
+  level: "info"    # debug, info, warn, error, fatal, panic
+  format: "json"   # json or text
+  output: "both"   # stdout, file, both
   file:
     filename: "blackbox.log"  # 파일명만 (dir과 결합됨)
     max_size: 100      # MB

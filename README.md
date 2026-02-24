@@ -110,10 +110,25 @@ mage dpG4u linux-amd64
 패키지 구조:
 ```
 neo-blackbox-linux-amd64/
-├── bin/neo-blackbox     # 백엔드 바이너리
-├── config/config.yaml   # 설정 파일
-└── tools/               # tools/linux-amd64/ 내용물
+├── bin/
+│   └── neo-blackbox         # 백엔드 바이너리
+├── config/
+│   └── config.yaml          # 설정 파일 (환경에 맞게 수정 필요)
+├── tools/                   # tools/linux-amd64/ 내용물 (ffmpeg, mediamtx, ai manager 등)
+└── README.txt
 ```
+
+압축 해제 후 실행:
+```bash
+tar -xzf neo-blackbox-linux-amd64.tar.gz
+cd neo-blackbox-linux-amd64
+
+# config.yaml 수정 후 실행
+./bin/neo-blackbox -config config/config.yaml
+```
+
+> **주의**: `config.yaml`의 상대경로(`./tmp/...`)는 **실행 위치(CWD)** 기준입니다.
+> 반드시 패키지 루트(`neo-blackbox-linux-amd64/`)에서 실행하거나, 절대경로로 설정하세요.
 
 ## API
 
