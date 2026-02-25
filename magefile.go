@@ -290,7 +290,7 @@ func Package(target string) error {
 			"blackbox-ai-manager": aiDestDir,
 			"blackbox-ai-core":    aiDestDir,
 			"config.json":         aiDestDir,
-			"libonnxruntime.so":   filepath.Join(aiDestDir, "models"),
+			"libonnxruntime.so":   aiDestDir,
 		}
 
 		entries, err := os.ReadDir(toolsSrcDir)
@@ -303,7 +303,15 @@ func Package(target string) error {
 				}
 				src := filepath.Join(toolsSrcDir, entry.Name())
 				var dest string
-				if destDir, ok := aiFileDestDir[entry.Name()]; ok {
+				if filepath.Ext(entry.Name()) == ".onnx" {
+					// .onnx 모델 파일은 ai/models/ 로
+					modelsDestDir := filepath.Join(aiDestDir, "models")
+					if err := os.MkdirAll(modelsDestDir, 0o755); err != nil {
+						fmt.Printf("Warning: failed to create models dir: %v\n", err)
+						continue
+					}
+					dest = filepath.Join(modelsDestDir, entry.Name())
+				} else if destDir, ok := aiFileDestDir[entry.Name()]; ok {
 					if err := os.MkdirAll(destDir, 0o755); err != nil {
 						fmt.Printf("Warning: failed to create dir %s: %v\n", destDir, err)
 						continue

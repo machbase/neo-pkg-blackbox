@@ -1,8 +1,8 @@
 server:
   addr: 0.0.0.0:8000
-  camera_dir: "../tmp/cameras"
-  mvs_dir: "../tmp/mvs"
-  data_dir: "../tmp/data"
+  camera_dir: "../bin/cameras"
+  mvs_dir: "../ai/mvs"
+  data_dir: "../bin/data"
 
 machbase:
   host: 127.0.0.1
