@@ -155,7 +155,7 @@ authJWTInHTTPQuery: true
 # Global settings -> Control API
 
 # Enable controlling the server through the Control API.
-api: no
+api: yes
 # Address of the Control API listener.
 apiAddress: :9997
 # Enable HTTPS on the Control API server.
@@ -772,10 +772,16 @@ pathDefaults:
 # for example "~^(test1|test2)$" will match both "test1" and "test2",
 # for example "~^prefix" will match all paths that start with "prefix".
 paths:
-  # example:
-  # my_camera:
-  #   source: rtsp://my_camera
+  live:
+    source: rtsp://machbase:machbase@192.168.1.141:554/stream1
+    rtspTransport: tcp
 
-  # Settings under path "all_others" are applied to all paths that
-  # do not match another entry.
+    # sourceOnDemand: yes
+    # sourceOnDemandStartTimeout: 10s
+    # sourceOnDemandCloseAfter: 10s
+
+  live2:
+    source: rtsp://machbase:machbase@192.168.1.173:554/stream1
+    rtspTransport: tcp
+
   all_others:
