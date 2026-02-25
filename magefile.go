@@ -42,7 +42,7 @@ func Build() error {
 		output += ".exe"
 	}
 
-	return sh.RunV("go", "build", "-o", output, ".")
+	return sh.RunV("go", "build", "-o", output, "./cmd/neo-blackbox")
 }
 
 // Run runs the application with config file
@@ -61,7 +61,7 @@ func Run() error {
 // Dev runs the application in development mode (with config.yaml)
 func Dev() error {
 	fmt.Printf("Running in dev mode with config: %s\n", configFile)
-	return sh.RunV("go", "run", ".", "-config", configFile)
+	return sh.RunV("go", "run", "./cmd/neo-blackbox", "-config", configFile)
 }
 
 // Test runs all tests
@@ -130,7 +130,7 @@ func Check() error {
 // Install builds and installs the binary to $GOPATH/bin
 func Install() error {
 	fmt.Println("Installing...")
-	return sh.RunV("go", "install", ".")
+	return sh.RunV("go", "install", "./cmd/neo-blackbox")
 }
 
 // RunWithConfig runs the application with a custom config file
@@ -170,7 +170,7 @@ func DevWithConfig(configPath string) error {
 	}
 
 	fmt.Printf("Running in dev mode with config: %s\n", absPath)
-	return sh.RunV("go", "run", ".", "-config", absPath)
+	return sh.RunV("go", "run", "./cmd/neo-blackbox", "-config", absPath)
 }
 
 // Version prints version information
@@ -209,7 +209,7 @@ func Package(target string) error {
 		"GOOS":        targetOS,
 		"GOARCH":      targetArch,
 	}
-	if err := sh.RunWith(buildEnv, "go", "build", "-o", binaryOutput, "."); err != nil {
+	if err := sh.RunWith(buildEnv, "go", "build", "-o", binaryOutput, "./cmd/neo-blackbox"); err != nil {
 		return fmt.Errorf("failed to build for %s: %w", target, err)
 	}
 	fmt.Printf("Built: %s\n", binaryOutput)
