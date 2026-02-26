@@ -47,7 +47,7 @@ func (h *Handler) GetCameras(c *gin.Context) {
 		}
 	}
 
-	var cameraList []Camera
+	cameraList := make([]Camera, 0)
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
