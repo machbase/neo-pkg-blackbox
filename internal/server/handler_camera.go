@@ -267,11 +267,15 @@ func (h *Handler) CreateCamera(c *gin.Context) {
 	if mvsCameraURL == "" {
 		mvsCameraURL = req.RtspURL
 	}
+	detectObjects := req.DetectObjects
+	if detectObjects == nil {
+		detectObjects = []string{}
+	}
 	mvs := MvsCameraCreateRequest{
 		CameraID:      req.Name,
 		CameraURL:     mvsCameraURL,
 		ModelID:       req.ModelID,
-		DetectObjects: req.DetectObjects,
+		DetectObjects: detectObjects,
 	}
 
 	mvsJSON, err := json.MarshalIndent(mvs, "", "  ")
@@ -346,11 +350,15 @@ func (h *Handler) CreateMvsCamera(c *gin.Context) {
 	}
 
 	// .mvs 파일로 저장
+	mvsDetectObjects := req.DetectObjects
+	if mvsDetectObjects == nil {
+		mvsDetectObjects = []string{}
+	}
 	mvsData := map[string]any{
 		"camera_id":      req.CameraID,
 		"camera_url":     req.CameraURL,
 		"model_id":       req.ModelID,
-		"detect_objects": req.DetectObjects,
+		"detect_objects": mvsDetectObjects,
 	}
 
 	mvsJSON, err := json.MarshalIndent(mvsData, "", "  ")
@@ -714,11 +722,15 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 	if newMvsCameraURL == "" {
 		newMvsCameraURL = existing.RtspURL
 	}
+	newMvsDetectObjects := existing.DetectObjects
+	if newMvsDetectObjects == nil {
+		newMvsDetectObjects = []string{}
+	}
 	newMvs := MvsCameraCreateRequest{
 		CameraID:      id,
 		CameraURL:     newMvsCameraURL,
 		ModelID:       existing.ModelID,
-		DetectObjects: existing.DetectObjects,
+		DetectObjects: newMvsDetectObjects,
 	}
 
 	newMvsJSON, err := json.MarshalIndent(newMvs, "", "  ")
@@ -971,11 +983,15 @@ func (h *Handler) enableCameraInternal(ctx context.Context, id string, cam *Came
 		if mvsCamURL == "" {
 			mvsCamURL = cam.RtspURL
 		}
+		startupDetectObjects := cam.DetectObjects
+		if startupDetectObjects == nil {
+			startupDetectObjects = []string{}
+		}
 		mvs := MvsCameraCreateRequest{
 			CameraID:      id,
 			CameraURL:     mvsCamURL,
 			ModelID:       cam.ModelID,
-			DetectObjects: cam.DetectObjects,
+			DetectObjects: startupDetectObjects,
 		}
 		if mvsJSON, err := json.MarshalIndent(mvs, "", "  "); err == nil {
 			if err := os.MkdirAll(h.mvsDir, 0755); err == nil {
