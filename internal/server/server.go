@@ -29,7 +29,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 // New creates a new Server.
-func New(cfg config.ServerConfig, mediamtxCfg config.MediamtxConfig, logDir string, machbase *db.Machbase, watcher Watcher, ffRunner *ffmpeg.FFmpegRunner, ffmpegBinary string, serveWeb bool) (*Server, error) {
+func New(cfg config.ServerConfig, mediamtxCfg config.MediamtxConfig, logDir string, machbase *db.Machbase, watcher Watcher, ffRunner *ffmpeg.FFmpegRunner, ffmpegBinary string, configPath string, serveWeb bool) (*Server, error) {
 	cfg.ApplyDefaults()
 
 	if cfg.BaseDir == "" {
@@ -49,7 +49,7 @@ func New(cfg config.ServerConfig, mediamtxCfg config.MediamtxConfig, logDir stri
 	s := &Server{
 		cfg:     cfg,
 		engine:  engine,
-		handler: NewHandler(machbase, watcher, ffRunner, cfg.DataDir, logDir, cfg.MvsDir, cfg.CameraDir, ffmpegBinary, mediamtxCfg.Host, mediamtxCfg.WebRTCHost, mediamtxCfg.Port, mediamtxCfg.WebRTCPort, mediamtxCfg.RtspServerPort),
+		handler: NewHandler(machbase, watcher, ffRunner, cfg.DataDir, logDir, cfg.MvsDir, cfg.CameraDir, ffmpegBinary, configPath, mediamtxCfg.Host, mediamtxCfg.WebRTCHost, mediamtxCfg.Port, mediamtxCfg.WebRTCPort, mediamtxCfg.RtspServerPort),
 	}
 	s.routes(serveWeb)
 
@@ -67,6 +67,11 @@ func (s *Server) routes(serveWeb bool) {
 	api := s.engine.Group("/api")
 
 	api.GET("/ping", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
+
+	// ==================================================================
+	// App Config (server, machbase, ffmpeg.binary)
+	api.GET("/config", s.handler.GetAppConfig)
+	api.POST("/config", s.handler.PostAppConfig)
 
 	// ==================================================================
 	// 목록

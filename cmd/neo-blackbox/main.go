@@ -45,6 +45,11 @@ func run(c context.Context, path string, serveWeb bool) error {
 	ctx, cancel := signal.NotifyContext(c, syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
+	absConfigPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("resolve config path: %w", err)
+	}
+
 	cfg, err := config.Load(path)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -83,7 +88,7 @@ func run(c context.Context, path string, serveWeb bool) error {
 	ff := ffmpeg.New(cfg.FFmpeg, logDir)
 	w := watcher.New(neo, ff, cfg.Server.CameraDir)
 
-	svr, err := server.New(cfg.Server, cfg.Mediamtx, logDir, neo, w, ff, cfg.FFmpeg.Binary, serveWeb)
+	svr, err := server.New(cfg.Server, cfg.Mediamtx, logDir, neo, w, ff, cfg.FFmpeg.Binary, absConfigPath, serveWeb)
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
 	}

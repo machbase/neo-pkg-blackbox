@@ -60,6 +60,7 @@ type cameraProcess struct {
 type Handler struct {
 	machbase             *db.Machbase
 	watcher              Watcher // watcher interface for dynamic watch management
+	configPath           string  // absolute path to config.yaml (for GET/POST /api/config)
 	dataDir              string
 	logDir               string // log directory (ffmpeg logs etc.)
 	mvsDir               string
@@ -94,7 +95,7 @@ type Watcher interface {
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(machbase *db.Machbase, watcher Watcher, ffRunner *ffmpeg.FFmpegRunner, dataDir, logDir, mvsDir, cameraDir, ffmpegBinary string, mediamtxHost string, mediamtxWebRTCHost string, mediamtxPort int, mediamtxWebRTCPort int, mediamtxRtspServerPort int) *Handler {
+func NewHandler(machbase *db.Machbase, watcher Watcher, ffRunner *ffmpeg.FFmpegRunner, dataDir, logDir, mvsDir, cameraDir, ffmpegBinary, configPath string, mediamtxHost string, mediamtxWebRTCHost string, mediamtxPort int, mediamtxWebRTCPort int, mediamtxRtspServerPort int) *Handler {
 	if dataDir == "" {
 		dataDir = "/data"
 	}
@@ -107,6 +108,7 @@ func NewHandler(machbase *db.Machbase, watcher Watcher, ffRunner *ffmpeg.FFmpegR
 		machbase:               machbase,
 		watcher:                watcher,
 		ffRunner:               ffRunner,
+		configPath:             configPath,
 		dataDir:                dataDir,
 		logDir:                 logDir,
 		mvsDir:                 mvsDir,
