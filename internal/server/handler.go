@@ -643,12 +643,17 @@ func (h *Handler) restoreMediaMTXPaths(ctx context.Context) {
 }
 
 // buildWebRTCURL generates the MediaMTX WebRTC URL for a given path name.
+// serverURL이 있으면 해당 host를 사용, 없으면 config의 mediamtxWebRTCHost 사용.
 // Format: http://{host}:{webrtcPort}/{pathName}/whep
-func (h *Handler) buildWebRTCURL(pathName string) string {
+func (h *Handler) buildWebRTCURL(pathName, serverURL string) string {
 	if pathName == "" {
 		return ""
 	}
-	return fmt.Sprintf("http://%s:%d/%s/whep", h.mediamtxWebRTCHost, h.mediamtxWebRTCPort, pathName)
+	host := h.mediamtxWebRTCHost
+	if serverURL != "" {
+		host = serverURL
+	}
+	return fmt.Sprintf("http://%s:%d/%s/whep", host, h.mediamtxWebRTCPort, pathName)
 }
 
 // buildMediamtxRtspURL generates the MediaMTX RTSP proxy URL for a given path name.

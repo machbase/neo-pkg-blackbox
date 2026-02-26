@@ -63,6 +63,8 @@ type CameraCreateRequest struct {
 
 	FFmpegOptions []ReqKV `json:"ffmpeg_options"` // 프론트에 전달 필요
 
+	ServerURL string `json:"server_url,omitempty"` // WebRTC host 오버라이드 (WSL 등 환경에서 외부 접근 가능한 IP 지정)
+
 	EventRule []EventRule `json:"event_rule"` // request에서는 안 받지만, 별도로 eventRule을 받는 API가 있고 CameraCreateRequest의 구조체는 파일에 json으로 저장됨
 }
 
@@ -82,6 +84,8 @@ type CameraUpdateRequest struct {
 	ArchiveDir    string `json:"archive_dir"`
 
 	FFmpegOptions []ReqKV `json:"ffmpeg_options"`
+
+	ServerURL string `json:"server_url,omitempty"` // WebRTC host 오버라이드
 
 	// nil이면 기존 event_rule 유지, 빈 배열([])이면 모든 룰 삭제
 	EventRule *[]EventRule `json:"event_rule"`
@@ -177,7 +181,7 @@ func (h *Handler) CreateCamera(c *gin.Context) {
 		return
 	}
 	// webrtc_url, mediamtx_rtsp_url 자동 생성 (API 입력값 무시, 시스템이 채움)
-	req.WebRTCURL = h.buildWebRTCURL(req.RtspPath)
+	req.WebRTCURL = h.buildWebRTCURL(req.RtspPath, req.ServerURL)
 	req.MediamtxRtspURL = h.buildMediamtxRtspURL(req.RtspPath)
 	// 신규 카메라는 항상 enabled = true
 	req.Enabled = boolPtr(true)
@@ -588,6 +592,7 @@ func (h *Handler) GetCamera(c *gin.Context) {
 	cameraData, _ := json.Marshal(camera)
 	json.Unmarshal(cameraData, &result)
 	result["camera_id"] = id
+	delete(result, "server_url")
 
 	successResponse(c, tick, result)
 }
@@ -644,8 +649,12 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 	if req.RtspPath != "" {
 		existing.RtspPath = req.RtspPath
 	}
+	// server_url: 요청에 있으면 갱신, 없으면 기존값 유지
+	if req.ServerURL != "" {
+		existing.ServerURL = req.ServerURL
+	}
 	// webrtc_url, mediamtx_rtsp_url 재생성: rtsp_url이 있으면 현재 rtsp_path 기준으로 갱신, 없으면 클리어
-	existing.WebRTCURL = h.buildWebRTCURL(existing.RtspPath)
+	existing.WebRTCURL = h.buildWebRTCURL(existing.RtspPath, existing.ServerURL)
 	existing.MediamtxRtspURL = h.buildMediamtxRtspURL(existing.RtspPath)
 	if existing.RtspURL == "" {
 		existing.WebRTCURL = ""
