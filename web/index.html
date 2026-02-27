@@ -448,6 +448,11 @@
                     <h3>MVS</h3>
                     <div class="nav-item" data-section="mvs-camera-create">MVS 카메라 생성</div>
                 </div>
+                <div class="nav-section">
+                    <h3>Machbase Proxy</h3>
+                    <div class="nav-item" data-section="machbase-sql">SQL Query</div>
+                    <div class="nav-item" data-section="machbase-tql">TQL</div>
+                </div>
             </div>
 
             <div class="main-content">
@@ -1043,6 +1048,34 @@
                     </div>
                     <button class="btn btn-success" onclick="createMVSCamera()">생성하기</button>
                     <div class="response-area" id="mvs-camera-create-response"></div>
+                </div>
+
+                <!-- Machbase SQL Query Section -->
+                <div class="api-section" id="machbase-sql">
+                    <h2><span class="method-badge method-get">GET</span> Machbase SQL Query</h2>
+                    <p class="help-text">SQL을 실행합니다. <code>/db/query</code> 프록시를 통해 machbase-neo로 전달됩니다.</p>
+                    <div class="form-group">
+                        <label>SQL *</label>
+                        <input type="text" id="machbase-sql-query" value="select count(*) from M$SYS_TABLES" />
+                    </div>
+                    <div class="form-group">
+                        <label>timeformat (선택)</label>
+                        <input type="text" id="machbase-sql-timeformat" placeholder="ms, ns, s ..." style="width:200px" />
+                    </div>
+                    <button class="btn btn-primary" onclick="runMachbaseSQL()">실행</button>
+                    <div class="response-area" id="machbase-sql-response"></div>
+                </div>
+
+                <!-- Machbase TQL Section -->
+                <div class="api-section" id="machbase-tql">
+                    <h2><span class="method-badge method-post">POST</span> Machbase TQL</h2>
+                    <p class="help-text">TQL 스크립트를 실행합니다. <code>/db/tql</code> 프록시를 통해 machbase-neo로 전달됩니다.</p>
+                    <div class="form-group">
+                        <label>TQL Body *</label>
+                        <textarea id="machbase-tql-body" rows="6" placeholder="SQL('select * from MY_TABLE limit 5')&#10;CSV()"></textarea>
+                    </div>
+                    <button class="btn btn-success" onclick="runMachbaseTQL()">실행</button>
+                    <div class="response-area" id="machbase-tql-response"></div>
                 </div>
             </div>
         </div>
@@ -1994,6 +2027,47 @@ ${JSON.stringify({ error: error.message }, null, 2)}
                 showResponse('mvs-camera-create-response', data);
             } catch (error) {
                 showResponse('mvs-camera-create-response', { error: error.message }, true);
+            }
+        }
+
+        // Machbase Proxy Functions
+        async function runMachbaseSQL() {
+            const q = document.getElementById('machbase-sql-query').value.trim();
+            const tf = document.getElementById('machbase-sql-timeformat').value.trim();
+            if (!q) { alert('SQL을 입력하세요'); return; }
+
+            let url = `/db/query?q=${encodeURIComponent(q)}&rowsArray=true`;
+            if (tf) url += `&timeformat=${encodeURIComponent(tf)}`;
+
+            showLoading('machbase-sql-response');
+            try {
+                const resp = await fetch(url);
+                const text = await resp.text();
+                let parsed;
+                try { parsed = JSON.parse(text); } catch { parsed = text; }
+                showResponse('machbase-sql-response', parsed, !resp.ok);
+            } catch (error) {
+                showResponse('machbase-sql-response', { error: error.message }, true);
+            }
+        }
+
+        async function runMachbaseTQL() {
+            const body = document.getElementById('machbase-tql-body').value;
+            if (!body.trim()) { alert('TQL body를 입력하세요'); return; }
+
+            showLoading('machbase-tql-response');
+            try {
+                const resp = await fetch('/db/tql', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body
+                });
+                const text = await resp.text();
+                let parsed;
+                try { parsed = JSON.parse(text); } catch { parsed = text; }
+                showResponse('machbase-tql-response', parsed, !resp.ok);
+            } catch (error) {
+                showResponse('machbase-tql-response', { error: error.message }, true);
             }
         }
 

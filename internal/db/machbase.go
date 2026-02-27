@@ -17,8 +17,9 @@ import (
 
 // Machbase is a client for Machbase HTTP API.
 type Machbase struct {
-	baseURL *url.URL
-	client  *http.Client
+	baseURL  *url.URL
+	client   *http.Client
+	apiToken string
 }
 
 // NewMachbase creates a new Machbase client.
@@ -36,8 +37,9 @@ func NewMachbase(cfg config.MachbaseConfig) (*Machbase, error) {
 	}
 
 	return &Machbase{
-		baseURL: u,
-		client:  &http.Client{Timeout: timeout},
+		baseURL:  u,
+		client:   &http.Client{Timeout: timeout},
+		apiToken: cfg.APIToken,
 	}, nil
 }
 
@@ -95,6 +97,9 @@ func (m *Machbase) Query(ctx context.Context, sql string, opts ...QueryOption) (
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
+	if m.apiToken != "" {
+		req.Header.Set("Authorization", "Bearer "+m.apiToken)
+	}
 
 	resp, err := m.client.Do(req)
 	if err != nil {
@@ -193,6 +198,9 @@ func (m *Machbase) WriteRows(ctx context.Context, table string, columns []string
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	if m.apiToken != "" {
+		req.Header.Set("Authorization", "Bearer "+m.apiToken)
+	}
 
 	resp, err := m.client.Do(req)
 	if err != nil {
@@ -219,6 +227,32 @@ func (m *Machbase) WriteRows(ctx context.Context, table string, columns []string
 	}
 
 	return nil
+}
+
+// Forward proxies an arbitrary request to the machbase server and returns the raw response.
+// The caller is responsible for closing the response body.
+// Authorization header is added automatically if apiToken is set.
+func (m *Machbase) Forward(ctx context.Context, method, path string, rawQuery string, body io.Reader, contentType string) (*http.Response, error) {
+	u := m.baseURL.JoinPath(path)
+	u.RawQuery = rawQuery
+
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	if m.apiToken != "" {
+		req.Header.Set("Authorization", "Bearer "+m.apiToken)
+	}
+
+	return m.client.Do(req)
+}
+
+// BaseURL returns a copy of the base URL string (scheme://host:port).
+func (m *Machbase) BaseURL() string {
+	return m.baseURL.String()
 }
 
 // Helper functions

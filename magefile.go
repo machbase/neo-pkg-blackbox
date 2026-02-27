@@ -5,6 +5,7 @@ package main
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bufio"
 	"compress/gzip"
 	"encoding/json"
@@ -649,6 +650,13 @@ func DpG4u(target string) error {
 		return fmt.Errorf("failed to package: %w", err)
 	}
 
+	// Load .env file
+	env, err := loadEnv()
+	if err != nil {
+		fmt.Printf("Warning: failed to load .env file: %v\n", err)
+		env = make(map[string]string)
+	}
+
 	// Find the created archive
 	targetOS := strings.SplitN(target, "-", 2)[0]
 	packageName := fmt.Sprintf("%s-%s", binaryName, target)
@@ -663,9 +671,10 @@ func DpG4u(target string) error {
 		return fmt.Errorf("package file not found: %s", archivePath)
 	}
 
-	remoteUser := "demo"
-	remoteHost := "192.168.1.248"
-	remotePath := "/data/pkgs"
+	// Get remote server details from .env or use defaults
+	remoteUser := getEnvOrDefault(env, "DEPLOY_G4U_USER", "demo")
+	remoteHost := getEnvOrDefault(env, "DEPLOY_G4U_HOST", "192.168.1.185")
+	remotePath := getEnvOrDefault(env, "DEPLOY_G4U_PATH", "/data/pkgs")
 
 	remoteTarget := fmt.Sprintf("%s@%s:%s/", remoteUser, remoteHost, remotePath)
 
@@ -693,6 +702,178 @@ func getEnvOrDefault(env map[string]string, key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// ToolsAI downloads the latest blackbox-ai release for the specified target
+// from GitHub (machbase/neo-blackbox-ai) and extracts it into tools/{target}/.
+// GITHUB_TOKEN은 환경변수 또는 .env 파일에서 읽습니다.
+// Usage: mage toolsai linux-amd64
+func ToolsAI(target string) error {
+	parts := strings.SplitN(target, "-", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid target %q: expected format os-arch (e.g. linux-amd64)", target)
+	}
+	targetOS := parts[0]
+
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		env, _ := loadEnv()
+		token = env["GITHUB_TOKEN"]
+	}
+
+	ext := "tar.gz"
+	if targetOS == "windows" {
+		ext = "zip"
+	}
+
+	// asset 이름 패턴: blackbox-ai-v{version}-{target}.{ext}
+	prefix := "blackbox-ai-"
+	suffix := fmt.Sprintf("-%s.%s", target, ext)
+
+	const owner, repo = "machbase", "neo-blackbox-ai"
+	assetURL, assetName, releaseTag, err := githubReleaseAssetByPattern(owner, repo, token, prefix, suffix)
+	if err != nil {
+		return fmt.Errorf("find asset for %s: %w", target, err)
+	}
+	fmt.Printf("Found: %s (release: %s)\n", assetName, releaseTag)
+
+	destDir := filepath.Join("tools", target)
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return fmt.Errorf("create tools dir: %w", err)
+	}
+
+	// Download
+	req, err := http.NewRequest("GET", assetURL, nil)
+	if err != nil {
+		return err
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	req.Header.Set("Accept", "application/octet-stream")
+
+	client := &http.Client{Timeout: 10 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("download returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	fmt.Printf("Extracting to %s/...\n", destDir)
+
+	if targetOS == "windows" {
+		// zip은 random access 필요 → 임시 파일로 저장 후 추출
+		if err := os.MkdirAll(tmpDir, 0755); err != nil {
+			return err
+		}
+		tmpFile := filepath.Join(tmpDir, assetName)
+		f, err := os.Create(tmpFile)
+		if err != nil {
+			return fmt.Errorf("create tmp file: %w", err)
+		}
+		if _, err := io.Copy(f, resp.Body); err != nil {
+			f.Close()
+			return fmt.Errorf("write tmp file: %w", err)
+		}
+		f.Close()
+		defer os.Remove(tmpFile)
+		return extractZipFlat(tmpFile, destDir)
+	}
+
+	return extractTarGzStream(resp.Body, destDir)
+}
+
+// githubReleaseAssetByPattern은 최신 release에서 prefix와 suffix가 모두 일치하는
+// asset의 API URL, 파일명, 태그를 반환합니다.
+func githubReleaseAssetByPattern(owner, repo, token, prefix, suffix string) (assetURL, assetName, tagName string, err error) {
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases", owner, repo)
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return "", "", "", err
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", "", "", fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var releases []struct {
+		TagName string `json:"tag_name"`
+		Assets  []struct {
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		} `json:"assets"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+		return "", "", "", fmt.Errorf("decode response: %w", err)
+	}
+	if len(releases) == 0 {
+		return "", "", "", fmt.Errorf("no releases found")
+	}
+
+	for _, rel := range releases {
+		for _, asset := range rel.Assets {
+			if strings.HasPrefix(asset.Name, prefix) && strings.HasSuffix(asset.Name, suffix) {
+				return asset.URL, asset.Name, rel.TagName, nil
+			}
+		}
+	}
+	return "", "", "", fmt.Errorf("no asset matching prefix=%q suffix=%q found in any release", prefix, suffix)
+}
+
+// extractZipFlat extracts a zip archive flat (top-level files only, no dir structure) into destDir.
+func extractZipFlat(zipPath, destDir string) error {
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return fmt.Errorf("open zip: %w", err)
+	}
+	defer r.Close()
+
+	for _, f := range r.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		name := filepath.Base(f.Name)
+		if name == "" || name == "." {
+			continue
+		}
+		destPath := filepath.Join(destDir, name)
+		rc, err := f.Open()
+		if err != nil {
+			return fmt.Errorf("open zip entry %s: %w", name, err)
+		}
+		out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, f.Mode()&0o777)
+		if err != nil {
+			rc.Close()
+			return fmt.Errorf("create %s: %w", name, err)
+		}
+		if _, err := io.Copy(out, rc); err != nil {
+			rc.Close()
+			out.Close()
+			return fmt.Errorf("write %s: %w", name, err)
+		}
+		rc.Close()
+		out.Close()
+		fmt.Printf("  Extracted: %s\n", name)
+	}
+	return nil
 }
 
 // downloadAIRelease fetches neo-blackbox-ai-{target}.tar.gz from the latest
