@@ -185,47 +185,4 @@ cd neo-blackbox-linux-amd64
 > **주의**: `config.yaml`의 상대경로는 **config 파일 위치(`config/`) 기준**입니다.
 > 패키지 루트(`neo-blackbox-linux-amd64/`)에서 실행하면 경로가 올바르게 해석됩니다.
 
-## API
 
-서버 실행 후 `http://{addr}/` 에서 웹 UI로 API를 테스트할 수 있습니다.
-
-전체 API 명세는 [API_SPEC.md](API_SPEC.md)를 참고하세요.
-
-### 주요 API 목록
-
-| 메서드 | 경로 | 설명 |
-|--------|------|------|
-| `POST` | `/api/camera` | 카메라 생성 |
-| `GET` | `/api/cameras` | 카메라 목록 조회 |
-| `GET` | `/api/camera/:id` | 카메라 정보 조회 |
-| `POST` | `/api/camera/:id/enable` | 카메라 활성화 |
-| `POST` | `/api/camera/:id/disable` | 카메라 비활성화 |
-| `GET` | `/api/event_rule/:camera_id` | 이벤트 규칙 조회 |
-| `POST` | `/api/event_rule` | 이벤트 규칙 추가 |
-| `GET` | `/api/camera_events` | 이벤트 로그 조회 |
-| `POST` | `/api/ai/result` | AI 감지 결과 업로드 |
-| `GET` | `/api/v_get_chunk` | 영상 청크 다운로드 |
-
-## DB 테이블
-
-카메라 생성 시 3개의 Machbase TAG 테이블이 자동으로 만들어집니다.
-
-| 테이블 | 용도 |
-|--------|------|
-| `{table}` | 영상 청크 저장 |
-| `{table}_event` | 이벤트 규칙 평가 결과 |
-| `{table}_log` | AI 객체 감지 카운트 |
-
-## 이벤트 규칙 (DSL)
-
-카메라별로 이벤트 규칙을 등록하면, AI 감지 결과를 기반으로 매 초 규칙을 평가합니다.
-
-```
-person > 5               # person이 5개 초과
-person > 5 AND car >= 2  # person 5개 초과이고 car 2개 이상
-(person + car) > 10      # person과 car 합계가 10 초과
-```
-
-기록 모드:
-- **ALL_MATCHES** - 조건이 참일 때마다 기록
-- **EDGE_ONLY** - 상태가 변할 때만 기록 (false→true: TRIGGER, true→false: RESOLVE)
