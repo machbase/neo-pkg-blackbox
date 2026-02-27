@@ -650,10 +650,23 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 		return
 	}
 
-	// 기존 설정에 업데이트 필드 반영 (name, table은 유지)
+	// 재시작 필요 여부 판단을 위해 ffmpeg 관련 old 값 미리 캡처
+	oldRtspURL := existing.RtspURL
 	oldRtspPath := existing.RtspPath
+	oldFFmpegCommand := existing.FFmpegCommand
+	oldOutputDir := existing.OutputDir
+	oldArchiveDir := existing.ArchiveDir
+
+	// 현재 실행 중인지 확인
+	h.processMu.Lock()
+	proc, wasRunning := h.processes[id]
+	h.processMu.Unlock()
+
+	// 기존 설정에 업데이트 필드 반영 (name, table은 유지)
 	existing.Desc = req.Desc
-	existing.RtspURL = req.RtspURL
+	if req.RtspURL != "" {
+		existing.RtspURL = req.RtspURL
+	}
 	if req.RtspPath != "" {
 		existing.RtspPath = req.RtspPath
 	}
@@ -661,12 +674,14 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 	if req.ServerURL != "" {
 		existing.ServerURL = req.ServerURL
 	}
-	// webrtc_url, mediamtx_rtsp_url 재생성: rtsp_url이 있으면 현재 rtsp_path 기준으로 갱신, 없으면 클리어
-	existing.WebRTCURL = h.buildWebRTCURL(existing.RtspPath, existing.ServerURL)
-	existing.MediamtxRtspURL = h.buildMediamtxRtspURL(existing.RtspPath)
+	// webrtc_url, mediamtx_rtsp_url: rtsp_url이 없으면 클리어,
+	// rtsp_path가 변경된 경우에만 재생성 (rtsp_url만 바뀐 경우 기존값 유지)
 	if existing.RtspURL == "" {
 		existing.WebRTCURL = ""
 		existing.MediamtxRtspURL = ""
+	} else if existing.RtspPath != oldRtspPath {
+		existing.WebRTCURL = h.buildWebRTCURL(existing.RtspPath, existing.ServerURL)
+		existing.MediamtxRtspURL = h.buildMediamtxRtspURL(existing.RtspPath)
 	}
 	existing.MediaURL = req.MediaURL
 	existing.ModelID = req.ModelID
@@ -843,6 +858,34 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 	// Event rules 캐시 갱신
 	h.refreshCameraConfigCache(id)
 
+	// ffmpeg 관련 필드가 변경됐고 실행 중이면 재시작
+	needsRestart := oldRtspURL != existing.RtspURL ||
+		oldRtspPath != existing.RtspPath ||
+		oldFFmpegCommand != existing.FFmpegCommand ||
+		oldOutputDir != existing.OutputDir ||
+		oldArchiveDir != existing.ArchiveDir
+
+	if wasRunning && needsRestart {
+		h.processMu.Lock()
+		if h.processes[id] == proc {
+			delete(h.processes, id)
+		}
+		h.processMu.Unlock()
+		proc.cancel()
+		if err := h.watcher.RemoveWatch(c.Request.Context(), id); err != nil {
+			logger.GetLogger().Warnf("UpdateCamera[%s]: failed to remove watcher before restart: %v", id, err)
+		}
+		if existing.RtspURL != "" {
+			if err := h.enableCameraInternal(c.Request.Context(), id, &existing, "UpdateCamera"); err != nil {
+				logger.GetLogger().Warnf("UpdateCamera[%s]: failed to restart camera: %v", id, err)
+			} else {
+				logger.GetLogger().Infof("UpdateCamera[%s]: restarted with new config", id)
+			}
+		} else {
+			logger.GetLogger().Infof("UpdateCamera[%s]: stopped camera (rtsp_url cleared)", id)
+		}
+	}
+
 	successResponse(c, tick, CreateCameraResponse{
 		CameraID: id,
 	})
@@ -876,6 +919,21 @@ func (h *Handler) DeleteCamera(c *gin.Context) {
 
 	// MVS 파일도 삭제
 	h.removeMvsFiles(id)
+
+	// 실행 중인 ffmpeg 프로세스 종료
+	h.processMu.Lock()
+	proc, running := h.processes[id]
+	if running {
+		delete(h.processes, id)
+	}
+	h.processMu.Unlock()
+	if running {
+		proc.cancel()
+		if err := h.watcher.RemoveWatch(c.Request.Context(), id); err != nil {
+			logger.GetLogger().Warnf("DeleteCamera[%s]: failed to remove watcher: %v", id, err)
+		}
+		logger.GetLogger().Infof("DeleteCamera[%s]: stopped ffmpeg process", id)
+	}
 
 	// MediaMTX path 삭제
 	if rtspPathToRemove != "" {
@@ -1004,11 +1062,14 @@ func (h *Handler) enableCameraInternal(ctx context.Context, id string, cam *Came
 	}
 
 	// MediaMTX path 등록 (rtsp_url과 rtsp_path가 모두 설정된 경우)
+	// 기존 path 삭제 후 재추가: source URL 변경 시 MediaMTX가 새 source로 즉시 재접속하도록 강제
 	if cam.RtspURL != "" && cam.RtspPath != "" {
-		if err := h.mediamtxClient.AddOrUpdatePath(ctx, cam.RtspPath, mediamtx.PathConfig{
+		pathCfg := mediamtx.PathConfig{
 			Source:         cam.RtspURL,
 			SourceProtocol: mediamtx.PathSourceTCP,
-		}); err != nil {
+		}
+		_ = h.mediamtxClient.RemovePath(ctx, cam.RtspPath) // 없으면 무시
+		if err := h.mediamtxClient.AddPath(ctx, cam.RtspPath, pathCfg); err != nil {
 			logger.GetLogger().Warnf("%s[%s]: failed to register MediaMTX path %q: %v", caller, id, cam.RtspPath, err)
 		} else {
 			logger.GetLogger().Infof("%s[%s]: registered MediaMTX path %q -> %s", caller, id, cam.RtspPath, cam.RtspURL)
@@ -1455,10 +1516,9 @@ func (h *Handler) GetCameraStatus(c *gin.Context) {
 	proc, running := h.processes[id]
 	h.processMu.Unlock()
 	if running {
+		status = "running"
 		proc.mu.Lock()
-		// cmd != nil 일 때만 실제 "running", nil이면 backoff 중이므로 "stopped"로 표시
 		if proc.cmd != nil && proc.cmd.Process != nil {
-			status = "running"
 			pid = proc.cmd.Process.Pid
 		}
 		proc.mu.Unlock()
@@ -1516,12 +1576,11 @@ func (h *Handler) GetCamerasHealth(c *gin.Context) {
 		}
 
 		if proc, ok := h.processes[name]; ok {
+			cam["status"] = "running"
+			runningCount++
 			proc.mu.Lock()
-			// cmd != nil 일 때만 실제 "running", nil이면 backoff 중이므로 "stopped"로 표시
 			if proc.cmd != nil && proc.cmd.Process != nil {
-				cam["status"] = "running"
 				cam["pid"] = proc.cmd.Process.Pid
-				runningCount++
 			}
 			proc.mu.Unlock()
 			cam["started_at"] = proc.startedAt.Format(time.RFC3339)
