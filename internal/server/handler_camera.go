@@ -698,6 +698,15 @@ func (h *Handler) UpdateCamera(c *gin.Context) {
 	}
 	existing.FFmpegOptions = req.FFmpegOptions
 
+	// save_objects가 true이면 _log 테이블 생성 (IF NOT EXISTS라 중복 안전)
+	if existing.SaveObjects {
+		if err := h.machbase.CreateCameraLogTable(c.Request.Context(), existing.Table); err != nil {
+			logger.GetLogger().Errorf("UpdateCamera[%s]: failed to create log table: %v", id, err)
+			errorResponse(c, tick, http.StatusInternalServerError, fmt.Sprintf("failed to create log table: %v", err))
+			return
+		}
+	}
+
 	// event_rule: nil이면 기존 유지, 값이 있으면 덮어쓰기
 	if req.EventRule != nil {
 		existing.EventRule = *req.EventRule
