@@ -48,13 +48,10 @@ type FfmpegDefaultsAPI struct {
 }
 
 type MediamtxConfigAPI struct {
-	Binary         string `json:"binary"`
-	ConfigFile     string `json:"config_file"`
-	Host           string `json:"host"`
-	WebRTCHost     string `json:"webrtc_host"`
-	Port           int    `json:"port"`
-	WebRTCPort     int    `json:"webrtc_port"`
-	RtspServerPort int    `json:"rtsp_server_port"`
+	Binary     string `json:"binary"`
+	ConfigFile string `json:"config_file"`
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
 }
 
 type LogConfigAPI struct {
@@ -163,13 +160,10 @@ func cfgToDTO(cfg *config.AppConfig) AppConfigDTO {
 			},
 		},
 		Mediamtx: MediamtxConfigAPI{
-			Binary:         cfg.Mediamtx.Binary,
-			ConfigFile:     cfg.Mediamtx.ConfigFile,
-			Host:           cfg.Mediamtx.Host,
-			WebRTCHost:     cfg.Mediamtx.WebRTCHost,
-			Port:           cfg.Mediamtx.Port,
-			WebRTCPort:     cfg.Mediamtx.WebRTCPort,
-			RtspServerPort: cfg.Mediamtx.RtspServerPort,
+			Binary:     cfg.Mediamtx.Binary,
+			ConfigFile: cfg.Mediamtx.ConfigFile,
+			Host:       cfg.Mediamtx.Host,
+			Port:       cfg.Mediamtx.Port,
 		},
 		Log: LogConfigAPI{
 			Dir:    cfg.Log.Dir,
@@ -218,13 +212,10 @@ func dtoToCfg(req *AppConfigDTO) config.AppConfig {
 			},
 		},
 		Mediamtx: config.MediamtxConfig{
-			Binary:         req.Mediamtx.Binary,
-			ConfigFile:     req.Mediamtx.ConfigFile,
-			Host:           req.Mediamtx.Host,
-			WebRTCHost:     req.Mediamtx.WebRTCHost,
-			Port:           req.Mediamtx.Port,
-			WebRTCPort:     req.Mediamtx.WebRTCPort,
-			RtspServerPort: req.Mediamtx.RtspServerPort,
+			Binary:     req.Mediamtx.Binary,
+			ConfigFile: req.Mediamtx.ConfigFile,
+			Host:       req.Mediamtx.Host,
+			Port:       req.Mediamtx.Port,
 		},
 		Log: config.LogConfig{
 			Dir:    req.Log.Dir,

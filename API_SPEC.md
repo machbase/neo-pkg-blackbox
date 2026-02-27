@@ -342,21 +342,26 @@ Note:
 Response:
 ```json
 {
-    "camera_id": "string",                // 카메라 ID
-    "event_rules": [                      // 이벤트 규칙 배열 (규칙이 없으면 빈 배열 [])
+    "camera_id": "cam-001",
+    "event_rules": [
         {
-            "rule_id": "string",          // 규칙 ID
-            "name": "string",             // 규칙 이름
-            "expression_text": "string",  // DSL 표현식
-                                          // 예: "person > 5 AND car >= 2"
-            "record_mode": "string",      // 기록 모드
-                                          // "ALL_MATCHES": 매 초마다 기록
-                                          // "EDGE_ONLY": 상태 변화 시점만 기록
-            "enabled": false              // bool - 규칙 활성화 여부
+            "rule_id": "rule-001",
+            "name": "혼잡 감지",
+            "alias": "congestion",
+            "expression_text": "person > 5 AND car >= 2",
+            "record_mode": "EDGE_ONLY",
+            "enabled": true
         }
     ]
 }
 ```
+
+- `rule_id`: 규칙 고유 식별자
+- `name`: 규칙 이름 (표시용)
+- `alias`: 규칙 별칭 (영문, 선택)
+- `expression_text`: DSL 표현식 (저장 시 소문자로 정규화)
+- `record_mode`: `"ALL_MATCHES"` (매 초 기록) | `"EDGE_ONLY"` (상태 변화 시점만 기록)
+- `enabled`: 규칙 활성화 여부
 
 ---
 
@@ -367,29 +372,35 @@ Response:
 Request:
 ```json
 {
-    "camera_id": "string",                // required - 카메라 ID
+    "camera_id": "cam-001",
     "rule": {
-        "rule_id": "string",              // required - 규칙 ID (고유 식별자)
-        "name": "string",                 // 규칙 이름
-        "expression_text": "string",      // required - DSL 표현식
-                                          // 지원: 산술(+-*/), 비교(><>=<=!===)
-                                          // 논리(AND/OR/NOT), 괄호
-        "record_mode": "string",          // required - "ALL_MATCHES" | "EDGE_ONLY"
-        "enabled": false                  // bool - 규칙 활성화 여부
+        "rule_id": "rule-001",
+        "name": "혼잡 감지",
+        "alias": "congestion",
+        "expression_text": "person > 5 AND car >= 2",
+        "record_mode": "EDGE_ONLY",
+        "enabled": true
     }
 }
 ```
 
+- `camera_id`: required
+- `rule.rule_id`: required, 카메라 내 고유해야 함
+- `rule.expression_text`: required, DSL 표현식. 지원: 산술(`+-*/`), 비교(`> < >= <= != ==`), 논리(`AND OR NOT`), 괄호
+- `rule.record_mode`: required, `"ALL_MATCHES"` | `"EDGE_ONLY"`
+- `rule.alias`: optional
+
 Response:
 ```json
 {
-    "camera_id": "string",                // 카메라 ID
+    "camera_id": "cam-001",
     "rule": {
-        "rule_id": "string",              // 규칙 ID
-        "name": "string",                 // 규칙 이름
-        "expression_text": "string",      // DSL 표현식
-        "record_mode": "string",          // 기록 모드
-        "enabled": false                  // bool - 규칙 활성화 여부
+        "rule_id": "rule-001",
+        "name": "혼잡 감지",
+        "alias": "congestion",
+        "expression_text": "person > 5 and car >= 2",
+        "record_mode": "EDGE_ONLY",
+        "enabled": true
     }
 }
 ```
@@ -403,23 +414,25 @@ Response:
 Request:
 ```json
 {
-    "name": "string",                     // 규칙 이름
-    "expression_text": "string",          // DSL 표현식
-    "record_mode": "string",              // "ALL_MATCHES" | "EDGE_ONLY"
-    "enabled": false                      // bool - 규칙 활성화 여부
+    "name": "혼잡 감지 v2",
+    "alias": "congestion_v2",
+    "expression_text": "person > 10 OR car >= 5",
+    "record_mode": "ALL_MATCHES",
+    "enabled": true
 }
 ```
 
 Response:
 ```json
 {
-    "camera_id": "string",                // 카메라 ID
+    "camera_id": "cam-001",
     "rule": {
-        "rule_id": "string",              // 규칙 ID
-        "name": "string",                 // 규칙 이름
-        "expression_text": "string",      // DSL 표현식
-        "record_mode": "string",          // 기록 모드
-        "enabled": false                  // bool - 규칙 활성화 여부
+        "rule_id": "rule-001",
+        "name": "혼잡 감지 v2",
+        "alias": "congestion_v2",
+        "expression_text": "person > 10 or car >= 5",
+        "record_mode": "ALL_MATCHES",
+        "enabled": true
     }
 }
 ```
