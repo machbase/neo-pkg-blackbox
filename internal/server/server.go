@@ -140,7 +140,7 @@ func (s *Server) routes(serveWeb bool) {
 
 	// ==================================================================
 	// Machbase proxy — /db/* 요청을 machbase-neo 로 중계
-	s.engine.Any("/db/*path", s.handler.ProxyMachbase)
+	s.engine.POST("/db/tql", s.handler.ProxyMachbase)
 
 	// Web UI - Serve static frontend (-web 플래그를 줬을 때만 활성화)
 	if serveWeb {

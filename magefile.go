@@ -352,12 +352,26 @@ func Package(target string) error {
 		fmt.Printf("Warning: tools/%s not found, skipping\n", target)
 	}
 
-	// Download AI binaries from GitHub release (neo-blackbox-ai)
-	// GITHUB_TOKEN (env or .env) 가 있으면 최신 release asset 다운로드.
-	// 없거나 실패하면 tools/{target}/ 에서 복사한 로컬 파일로 fallback.
-	aiDestDir := filepath.Join(packageDir, "ai")
-	if err := downloadAIRelease(target, aiDestDir); err != nil {
-		fmt.Printf("Warning: failed to download AI release from GitHub (%v), using local files\n", err)
+	// 특정 실행 파일에 명시적으로 실행 권한 부여 (Windows 제외)
+	// 소스 파일의 권한 상태와 무관하게 항상 0755로 설정합니다.
+	if targetOS != "windows" {
+		knownExecutables := []string{
+			filepath.Join(packageDir, "tools", "ffmpeg"),
+			filepath.Join(packageDir, "tools", "ffprobe"),
+			filepath.Join(packageDir, "tools", "mediamtx"),
+			filepath.Join(packageDir, "ai", "blackbox-ai-core"),
+			filepath.Join(packageDir, "ai", "blackbox-ai-manager"),
+		}
+		for _, exePath := range knownExecutables {
+			if _, err := os.Stat(exePath); err != nil {
+				continue // 파일이 없으면 스킵
+			}
+			if err := os.Chmod(exePath, 0o755); err != nil {
+				fmt.Printf("Warning: failed to chmod +x %s: %v\n", filepath.Base(exePath), err)
+			} else {
+				fmt.Printf("chmod +x %s\n", exePath)
+			}
+		}
 	}
 
 	// Copy backend runtime files required by neo package contract.
@@ -874,102 +888,6 @@ func extractZipFlat(zipPath, destDir string) error {
 		fmt.Printf("  Extracted: %s\n", name)
 	}
 	return nil
-}
-
-// downloadAIRelease fetches neo-blackbox-ai-{target}.tar.gz from the latest
-// GitHub Release (including pre-releases) and extracts it into destDir.
-// GITHUB_TOKEN은 환경변수 또는 .env 파일에서 읽습니다.
-func downloadAIRelease(target, destDir string) error {
-	token := os.Getenv("GITHUB_TOKEN")
-	if token == "" {
-		env, _ := loadEnv()
-		token = env["GITHUB_TOKEN"]
-	}
-	if token == "" {
-		return fmt.Errorf("GITHUB_TOKEN not set")
-	}
-
-	const owner, repo = "machbase", "neo-blackbox-ai"
-	assetName := fmt.Sprintf("neo-blackbox-ai-%s.tar.gz", target)
-
-	assetURL, releaseTag, err := githubReleaseAssetURL(owner, repo, token, assetName)
-	if err != nil {
-		return fmt.Errorf("find asset %q: %w", assetName, err)
-	}
-	fmt.Printf("Downloading %s (release: %s)...\n", assetName, releaseTag)
-
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return fmt.Errorf("create dest dir: %w", err)
-	}
-
-	// Release asset 다운로드 (application/octet-stream → S3 redirect 따라감)
-	req, err := http.NewRequest("GET", assetURL, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/octet-stream")
-
-	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("download returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	return extractTarGzStream(resp.Body, destDir)
-}
-
-// githubReleaseAssetURL은 최신 release(pre-release 포함)에서 assetName의 API URL과 태그를 반환합니다.
-func githubReleaseAssetURL(owner, repo, token, assetName string) (assetURL, tagName string, err error) {
-	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases", owner, repo)
-	req, err := http.NewRequest("GET", apiURL, nil)
-	if err != nil {
-		return "", "", err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", "", fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	var releases []struct {
-		TagName string `json:"tag_name"`
-		Assets  []struct {
-			Name string `json:"name"`
-			URL  string `json:"url"`
-		} `json:"assets"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
-		return "", "", fmt.Errorf("decode response: %w", err)
-	}
-	if len(releases) == 0 {
-		return "", "", fmt.Errorf("no releases found")
-	}
-
-	for _, rel := range releases {
-		for _, asset := range rel.Assets {
-			if asset.Name == assetName {
-				return asset.URL, rel.TagName, nil
-			}
-		}
-	}
-	return "", "", fmt.Errorf("asset %q not found in any release", assetName)
 }
 
 // extractTarGzStream은 io.Reader로 받은 tar.gz를 destDir에 flat하게 추출합니다.
