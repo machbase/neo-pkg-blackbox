@@ -199,7 +199,12 @@ type CameraEventFilter struct {
 // QueryCameraEvents queries {table}_event with time range and optional filters.
 func (m *Machbase) QueryCameraEvents(ctx context.Context, table string, startNs, endNs int64, filter *CameraEventFilter) ([]CameraEventQueryRow, error) {
 	safeTable := escapeSQLLiteral(table)
-	where := fmt.Sprintf("time BETWEEN %d AND %d", startNs, endNs)
+	var where string
+	if startNs <= 0 {
+		where = fmt.Sprintf("time <= %d", endNs)
+	} else {
+		where = fmt.Sprintf("time BETWEEN %d AND %d", startNs, endNs)
+	}
 
 	if filter != nil {
 		if filter.CameraID != "" {
@@ -286,7 +291,14 @@ func (m *Machbase) UpdateEventRuleName(ctx context.Context, table string, camera
 // Optional filter applies the same WHERE conditions as QueryCameraEvents (without LIMIT/OFFSET).
 func (m *Machbase) CountCameraEvents(ctx context.Context, table string, startNs, endNs int64, filter *CameraEventFilter) (int64, error) {
 	safeTable := escapeSQLLiteral(table)
-	where := fmt.Sprintf("time BETWEEN %d AND %d", startNs, endNs)
+	// startNs=0 이면 Machbase가 0을 INT32로 파싱해 DATETIME 비교 오류 발생.
+	// startNs <= 0 인 경우 하한 없이 전체 기간 조회.
+	var where string
+	if startNs <= 0 {
+		where = fmt.Sprintf("time <= %d", endNs)
+	} else {
+		where = fmt.Sprintf("time BETWEEN %d AND %d", startNs, endNs)
+	}
 
 	if filter != nil {
 		if filter.CameraID != "" {
