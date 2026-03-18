@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"gopkg.in/yaml.v3"
 )
@@ -58,6 +59,14 @@ func Load(path string) (*AppConfig, error) {
 func applyEnvOverrides(cfg *AppConfig) {
 	if v := os.Getenv("BB_ADDR"); v != "" {
 		cfg.Server.Addr = v
+	}
+	if v := os.Getenv("BB_MACHBASE_HOST"); v != "" {
+		cfg.Machbase.Host = v
+	}
+	if v := os.Getenv("BB_MACHBASE_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			cfg.Machbase.Port = p
+		}
 	}
 }
 
