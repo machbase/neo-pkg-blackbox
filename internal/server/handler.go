@@ -15,12 +15,12 @@ import (
 	"sync"
 	"time"
 
-	"neo-blackbox/internal/config"
-	"neo-blackbox/internal/db"
-	"neo-blackbox/internal/ffmpeg"
-	"neo-blackbox/internal/logger"
-	"neo-blackbox/internal/mediamtx"
-	"neo-blackbox/internal/watcher"
+	"github.com/machbase/neo-pkg-blackbox/internal/config"
+	"github.com/machbase/neo-pkg-blackbox/internal/db"
+	"github.com/machbase/neo-pkg-blackbox/internal/ffmpeg"
+	"github.com/machbase/neo-pkg-blackbox/internal/logger"
+	"github.com/machbase/neo-pkg-blackbox/internal/mediamtx"
+	"github.com/machbase/neo-pkg-blackbox/internal/watcher"
 
 	"github.com/gin-gonic/gin"
 )

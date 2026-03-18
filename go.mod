@@ -1,4 +1,4 @@
-module neo-blackbox
+module github.com/machbase/neo-pkg-blackbox
 
 go 1.25.3
 

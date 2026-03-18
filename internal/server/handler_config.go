@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"neo-blackbox/internal/config"
+	"github.com/machbase/neo-pkg-blackbox/internal/config"
 
 	"github.com/gin-gonic/gin"
 )

@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"time"
 
-	"neo-blackbox/internal/config"
+	"github.com/machbase/neo-pkg-blackbox/internal/config"
 )
 
 // Client는 MediaMTX HTTP API 클라이언트

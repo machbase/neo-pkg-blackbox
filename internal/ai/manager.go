@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"neo-blackbox/internal/config"
-	"neo-blackbox/internal/logger"
+	"github.com/machbase/neo-pkg-blackbox/internal/config"
+	"github.com/machbase/neo-pkg-blackbox/internal/logger"
 )
 
 // Manager는 AI manager 프로세스를 관리한다.

@@ -8,10 +8,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"neo-blackbox/internal/config"
-	"neo-blackbox/internal/db"
-	"neo-blackbox/internal/ffmpeg"
-	"neo-blackbox/internal/logger"
+	"github.com/machbase/neo-pkg-blackbox/internal/config"
+	"github.com/machbase/neo-pkg-blackbox/internal/db"
+	"github.com/machbase/neo-pkg-blackbox/internal/ffmpeg"
+	"github.com/machbase/neo-pkg-blackbox/internal/logger"
 
 	"github.com/gin-gonic/gin"
 )

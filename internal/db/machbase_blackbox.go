@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"neo-blackbox/internal/logger"
+	"github.com/machbase/neo-pkg-blackbox/internal/logger"
 )
 
 // CameraMetadataRow represents a camera metadata row.
