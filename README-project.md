@@ -180,6 +180,9 @@ cd neo-blackbox-linux-amd64
 
 # config/config.yaml 수정 후 실행
 ./bin/neo-blackbox -config config/config.yaml
+
+# 서버 주소를 환경변수로 오버라이드 (config.yaml의 server.addr 무시)
+BB_ADDR=0.0.0.0:9000 ./bin/neo-blackbox -config config/config.yaml
 ```
 
 > **주의**: `config.yaml`의 상대경로는 **config 파일 위치(`config/`) 기준**입니다.

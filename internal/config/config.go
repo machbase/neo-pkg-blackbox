@@ -50,8 +50,15 @@ func Load(path string) (*AppConfig, error) {
 
 	applyDefaults(cfg)
 	resolveRelativePaths(cfg, filepath.Dir(absPath))
+	applyEnvOverrides(cfg)
 
 	return cfg, nil
+}
+
+func applyEnvOverrides(cfg *AppConfig) {
+	if v := os.Getenv("BB_ADDR"); v != "" {
+		cfg.Server.Addr = v
+	}
 }
 
 // resolveRelativePaths resolves relative path fields in the config
