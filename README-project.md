@@ -61,19 +61,31 @@ server:
   data_dir: "../bin/data"        # 영상 데이터 저장 경로
 
 machbase:
+  scheme: "http"
   host: 127.0.0.1
   port: 5654
   timeout_seconds: 30
+  api_token: ""                  # Machbase API 토큰 (필요 시)
 
 mediamtx:
-  binary: "../tools/mediamtx"   # 비어있으면 외부 서버 사용
+  binary: "../tools/mediamtx"          # 비어있으면 외부 서버 사용
+  config_file: "../tools/mediamtx.yml" # 비어있으면 바이너리 옆에서 자동 탐색
   host: 127.0.0.1
-  port: 9997                     # MediaMTX HTTP API 포트
+  port: 9997                           # MediaMTX HTTP API 포트
 
 ffmpeg:
   binary: "../tools/ffmpeg"
   defaults:
     probe_binary: "../tools/ffprobe"
+    probe_args:
+      - flag: v
+        value: "error"
+      - flag: select_streams
+        value: "v:0"
+      - flag: show_entries
+        value: "packet=pts_time,duration_time"
+      - flag: of
+        value: "csv=p=0"
 
 ai:
   binary: "../ai/blackbox-ai-manager"  # 비어있으면 AI 비활성화
@@ -169,6 +181,7 @@ neo-blackbox-linux-amd64/
 │   ├── models/
 │   │   └── *.onnx               # AI 모델 파일
 │   └── mvs/                     # MVS 작업 디렉토리 (런타임 생성)
+├── logs/                        # 로그 파일 디렉토리 (런타임 생성)
 └── README.txt
 ```
 
@@ -181,6 +194,9 @@ cd neo-blackbox-linux-amd64
 # config/config.yaml 수정 후 실행
 ./bin/neo-blackbox -config config/config.yaml
 
+# 웹 UI 포함 실행
+./bin/neo-blackbox -config config/config.yaml -web
+
 # 서버 주소를 환경변수로 오버라이드 (config.yaml의 server.addr 무시)
 BB_ADDR=0.0.0.0:9000 ./bin/neo-blackbox -config config/config.yaml
 ```
@@ -188,4 +204,257 @@ BB_ADDR=0.0.0.0:9000 ./bin/neo-blackbox -config config/config.yaml
 > **주의**: `config.yaml`의 상대경로는 **config 파일 위치(`config/`) 기준**입니다.
 > 패키지 루트(`neo-blackbox-linux-amd64/`)에서 실행하면 경로가 올바르게 해석됩니다.
 
+## REST API
 
+모든 응답은 아래 공통 포맷을 사용합니다:
+
+```json
+{
+  "success": true,
+  "reason": "",
+  "elapse": "1.23ms",
+  "data": { ... }
+}
+```
+
+---
+
+### 공통
+
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/api/ping` | 헬스체크 |
+| GET | `/api/config` | 앱 설정 조회 |
+| POST | `/api/config` | 앱 설정 수정 (server.addr, ai 항목은 읽기 전용) |
+
+---
+
+### 카메라 관리
+
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/api/cameras` | 카메라 목록 조회 |
+| POST | `/api/camera` | 카메라 생성 |
+| GET | `/api/camera/:id` | 카메라 상세 조회 |
+| POST | `/api/camera/:id` | 카메라 수정 |
+| DELETE | `/api/camera/:id` | 카메라 삭제 |
+| POST | `/api/camera/:id/enable` | 카메라 활성화 (ffmpeg 시작) |
+| POST | `/api/camera/:id/disable` | 카메라 비활성화 (ffmpeg 중지) |
+| GET | `/api/camera/:id/status` | 카메라 상태 조회 |
+| GET | `/api/cameras/health` | 전체 카메라 상태 조회 |
+| POST | `/api/camera/:id/test` | RTSP 접속 테스트 |
+
+**POST /api/camera 요청:**
+```json
+{
+  "table": "cam01",
+  "name": "cam01",
+  "desc": "주차장 카메라",
+  "rtsp_url": "rtsp://user:pass@192.168.1.100/stream1",
+  "rtsp_path": "",           // 비어있으면 cam-{16자리 hex} 자동 생성
+  "model_id": 0,
+  "detect_objects": ["person", "car"],
+  "save_objects": false,
+  "ffmpeg_options": [],
+  "server_url": ""           // WebRTC 외부 IP (WSL 등 환경)
+}
+```
+
+**POST /api/camera 응답 data:**
+```json
+{ "camera_id": "cam01" }
+```
+
+---
+
+### 영상 조회
+
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/api/get_time_range` | 카메라의 녹화 시간 범위 조회 |
+| GET | `/api/get_chunk_info` | 특정 시각의 청크 정보 조회 |
+| GET | `/api/v_get_chunk` | 청크 바이너리 데이터 반환 (`application/octet-stream`) |
+| GET | `/api/get_camera_rollup_info` | 분 단위 롤업 데이터 조회 |
+| GET | `/api/data_gaps` | 녹화 누락 구간 조회 |
+
+**GET /api/get_time_range 파라미터:**
+```
+?tagname={camera_id}
+```
+**응답 data:**
+```json
+{
+  "camera": "cam01",
+  "start": "2024-01-01T00:00:00Z",
+  "end": "2024-01-01T01:00:00Z",
+  "chunk_duration_seconds": 5.0,
+  "fps": 30
+}
+```
+
+**GET /api/get_chunk_info 파라미터:**
+```
+?tagname={camera_id}&time={RFC3339 또는 nanoseconds}
+```
+**응답 data:**
+```json
+{
+  "camera": "cam01",
+  "time": "2024-01-01T00:00:05Z",
+  "length": 5.123
+}
+```
+
+**GET /api/v_get_chunk 파라미터:**
+```
+?tagname={camera_id}&time={RFC3339 또는 nanoseconds 또는 "0"(초기화 세그먼트)}
+```
+
+**GET /api/get_camera_rollup_info 파라미터:**
+```
+?tagname={camera_id}&minutes={분}&start_time={ns}&end_time={ns}
+```
+**응답 data:**
+```json
+{
+  "camera": "cam01",
+  "minutes": 1,
+  "start_time_ns": 1700000000000000000,
+  "end_time_ns":   1700003600000000000,
+  "start": "2024-01-01T00:00:00Z",
+  "end":   "2024-01-01T01:00:00Z",
+  "rows": [
+    { "time": "2024-01-01T00:00:00Z", "sum_length": 60.0 }
+  ]
+}
+```
+
+**GET /api/data_gaps 파라미터:**
+```
+?camera_id={id}&start_time={RFC3339}&end_time={RFC3339}&interval={초, 기본 5}
+```
+**응답 data:**
+```json
+{
+  "camera_id": "cam01",
+  "start_time": "2024-01-01T00:00:00Z",
+  "end_time": "2024-01-01T01:00:00Z",
+  "interval": 5,
+  "total_gaps": 3,
+  "missing_times": ["2024-01-01T00:05:00Z", ...]
+}
+```
+
+---
+
+### 이벤트 룰
+
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/api/event_rule/:camera_id` | 카메라의 이벤트 룰 목록 조회 |
+| POST | `/api/event_rule` | 이벤트 룰 추가 |
+| POST | `/api/event_rule/:camera_id/:rule_id` | 이벤트 룰 수정 |
+| DELETE | `/api/event_rule/:camera_id/:rule_id` | 이벤트 룰 삭제 |
+
+**POST /api/event_rule 요청:**
+```json
+{
+  "camera_id": "cam01",
+  "rule": {
+    "rule_id": "rule_001",
+    "name": "사람 5명 초과",
+    "expression_text": "person > 5 AND car >= 2",
+    "record_mode": "EDGE_ONLY",   // "ALL_MATCHES" 또는 "EDGE_ONLY"
+    "enabled": true
+  }
+}
+```
+
+---
+
+### 카메라 이벤트 조회
+
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/api/camera_events` | 이벤트 조회 (시간 범위, 페이지네이션) |
+| GET | `/api/camera_events/count` | 마지막 조회 이후 신규 이벤트 수 |
+
+**GET /api/camera_events 파라미터:**
+```
+?start_time={ns}&end_time={ns}
+  &camera_id={id}        // 선택 (없으면 전체)
+  &event_name={name}     // 선택
+  &event_type={type}     // 선택: MATCH, TRIGGER, RESOLVE, ERROR
+  &size={100}&page={1}   // 페이지네이션
+```
+**응답 data:**
+```json
+{
+  "events": [
+    {
+      "name": "rule_001",
+      "time": "2024-01-01T00:00:05Z",
+      "value": 1,
+      "value_label": "TRIGGER",
+      "expression_text": "person > 5",
+      "used_counts_snapshot": "{\"person\":6}",
+      "camera_id": "cam01",
+      "rule_id": "rule_001",
+      "rule_name": "사람 5명 초과"
+    }
+  ],
+  "total_count": 42,
+  "total_pages": 1
+}
+```
+
+---
+
+### AI / 감지 객체
+
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/api/models` | AI 모델 목록 조회 (yolov8n~x) |
+| GET | `/api/detect_objects` | 감지 가능한 객체 목록 조회 |
+| GET | `/api/camera/:id/detect_objects` | 카메라별 감지 객체 조회 |
+| POST | `/api/camera/:id/detect_objects` | 카메라별 감지 객체 수정 |
+| POST | `/api/ai/result` | AI 감지 결과 수신 (ai-manager → blackbox) |
+
+---
+
+### MVS
+
+| Method | Path | 설명 |
+|--------|------|------|
+| POST | `/api/mvs/camera` | MVS 카메라 설정 생성 |
+
+---
+
+### 센서 데이터
+
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/api/sensors` | 카메라별 센서 목록 조회 |
+| GET | `/api/sensor_data` | 센서 데이터 조회 |
+
+**GET /api/sensor_data 파라미터:**
+```
+?sensors={id1,id2,...}&start={RFC3339}&end={RFC3339}
+```
+
+---
+
+### 기타
+
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/api/tables` | Machbase TAG 테이블 목록 조회 |
+| POST | `/api/table` | TAG 테이블 생성 |
+| POST | `/api/cameras/ping` | IP 주소 ping 테스트 |
+| GET | `/api/media/heartbeat` | MediaMTX 상태 확인 |
+| POST | `/db/tql` | Machbase TQL 쿼리 프록시 |
+
+**POST /api/cameras/ping 요청:**
+```json
+{ "ip": "192.168.1.100", "timeout": 3 }
+```
