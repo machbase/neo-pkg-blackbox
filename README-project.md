@@ -20,7 +20,8 @@ neo-blackbox/
 ├── cmd/
 │   └── neo-blackbox/
 │       └── main.go              # 진입점
-├── magefile.go                  # 빌드/배포 스크립트 (mage)
+├── magefile.go                  # 빌드/배포 스크립트 (mage 타겟 정의)
+├── mage.go                      # mage 부트스트랩 (go run mage.go 진입점)
 ├── web/
 │   └── index.html               # API 테스트 웹 UI
 ├── tools/                       # 외부 바이너리 (플랫폼별 서브디렉토리)
@@ -47,7 +48,7 @@ neo-blackbox/
 
 - Go 1.25+
 - [Machbase](https://machbase.com) (시계열 DB)
-- [Mage](https://magefile.org) (빌드 도구)
+- [Mage](https://magefile.org) (빌드 도구, 별도 설치 불필요)
 
 ### 설정
 
@@ -112,23 +113,26 @@ log:
 
 ```bash
 # 빌드 (tmp/neo-blackbox 생성)
-mage build
+go run mage.go build
 
 # 실행 (internal/config/config.yaml 사용)
-mage run
+go run mage.go run
 
 # 개발 모드 (go run)
-mage dev
+go run mage.go dev
 
 # 커스텀 config로 실행
-mage runWithConfig path/to/config.yaml
-mage devWithConfig path/to/config.yaml
+go run mage.go runWithConfig path/to/config.yaml
+go run mage.go devWithConfig path/to/config.yaml
 
 # 테스트
-mage test
+go run mage.go test
 
 # 코드 품질 검사 (fmt + vet + test)
-mage check
+go run mage.go check
+
+# 사용 가능한 타겟 목록
+go run mage.go -l
 ```
 
 ### 배포
@@ -137,15 +141,15 @@ mage check
 
 ```bash
 # 패키징 (dist/ 폴더에 아카이브 생성)
-mage package linux-amd64
-mage package linux-arm64
-mage package windows-amd64   # .zip 생성
+go run mage.go package linux-amd64
+go run mage.go package linux-arm64
+go run mage.go package windows-amd64   # .zip 생성
 
 # 기본 서버에 배포 (패키징 + scp)
-mage dp linux-amd64
+go run mage.go dp linux-amd64
 
 # G4U 서버에 배포
-mage dpG4u linux-amd64
+go run mage.go dpG4u linux-amd64
 ```
 
 배포 서버 정보는 `.env` 파일로 설정합니다:
@@ -158,7 +162,7 @@ DEPLOY_PATH=/blackbox/be/pkg
 
 ## 패키지 구조
 
-`mage package` 실행 후 생성되는 구조:
+`go run mage.go package` 실행 후 생성되는 구조:
 
 ```
 neo-blackbox-linux-amd64/
@@ -197,12 +201,87 @@ cd neo-blackbox-linux-amd64
 # 웹 UI 포함 실행
 ./bin/neo-blackbox -config config/config.yaml -web
 
-# 서버 주소를 환경변수로 오버라이드 (config.yaml의 server.addr 무시)
+# 환경변수로 오버라이드 (config.yaml 값 무시)
 BB_ADDR=0.0.0.0:9000 ./bin/neo-blackbox -config config/config.yaml
+BB_MACHBASE_HOST=10.0.0.5 BB_MACHBASE_PORT=5655 ./bin/neo-blackbox -config config/config.yaml
 ```
 
 > **주의**: `config.yaml`의 상대경로는 **config 파일 위치(`config/`) 기준**입니다.
 > 패키지 루트(`neo-blackbox-linux-amd64/`)에서 실행하면 경로가 올바르게 해석됩니다.
+
+## DB 테이블 구조
+
+카메라 생성 시 3개의 TAG 테이블이 자동 생성됩니다. 여러 카메라가 같은 테이블을 공유할 수 있습니다.
+
+### `{table}` — 영상 청크 테이블
+
+```sql
+CREATE TAG TABLE IF NOT EXISTS {table} (
+    name VARCHAR(128) PRIMARY KEY,
+    time DATETIME BASETIME,
+    value DOUBLE SUMMARIZED,
+    chunk_path VARCHAR(128)
+) WITH ROLLUP TAG_PARTITION_COUNT=1, TAG_DATA_PART_SIZE=4194304
+```
+
+| 컬럼 | 설명 |
+|------|------|
+| `name` | 카메라 ID (태그 키) |
+| `time` | 청크 시작 시각 |
+| `value` | 청크 길이 (초) |
+| `chunk_path` | 청크 파일 경로 |
+
+### `{table}_event` — 이벤트 룰 평가 결과 테이블
+
+```sql
+CREATE TAG TABLE IF NOT EXISTS {table}_event (
+    name VARCHAR(128) PRIMARY KEY,
+    time DATETIME BASETIME,
+    value DOUBLE,
+    expression_text VARCHAR(200),
+    used_counts_snapshot JSON
+) METADATA (
+    camera_id VARCHAR(64),
+    rule_id VARCHAR(64),
+    rule_name VARCHAR(128)
+) TAG_PARTITION_COUNT=1, TAG_DATA_PART_SIZE=4194304
+```
+
+| 컬럼 | 설명 |
+|------|------|
+| `name` | 이벤트 이름 (태그 키) |
+| `time` | 이벤트 발생 시각 |
+| `value` | 이벤트 값 (1=TRIGGER, 0=RESOLVE 등) |
+| `expression_text` | 평가된 DSL 표현식 |
+| `used_counts_snapshot` | 평가 시점의 객체 카운트 JSON |
+| `camera_id` | 카메라 ID (메타데이터) |
+| `rule_id` | 룰 ID (메타데이터) |
+| `rule_name` | 룰 이름 (메타데이터) |
+
+### `{table}_log` — AI 감지 로그 테이블
+
+```sql
+CREATE TAG TABLE IF NOT EXISTS {table}_log (
+    name VARCHAR(128) PRIMARY KEY,
+    time DATETIME BASETIME,
+    value DOUBLE,
+    model_id INTEGER
+) METADATA (
+    camera_id VARCHAR(64),
+    ident VARCHAR(64)
+) TAG_PARTITION_COUNT=1, TAG_DATA_PART_SIZE=4194304
+```
+
+| 컬럼 | 설명 |
+|------|------|
+| `name` | `{cameraID}.{ident}` 형식 (예: `camera1.person`) |
+| `time` | 감지 시각 |
+| `value` | 감지 수량 |
+| `model_id` | 사용된 AI 모델 ID |
+| `camera_id` | 카메라 ID (메타데이터) |
+| `ident` | 감지 객체 종류 (메타데이터) |
+
+---
 
 ## REST API
 
