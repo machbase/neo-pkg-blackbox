@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router';
 import { AppProvider } from './context/AppContext';
 import { ConfirmProvider } from './context/ConfirmContext';
-import App from './App';
+import IndexApp from './IndexApp';
 import '../styles/index.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -11,7 +11,7 @@ createRoot(document.getElementById('root')!).render(
     <HashRouter>
       <AppProvider>
         <ConfirmProvider>
-          <App />
+          <IndexApp />
         </ConfirmProvider>
       </AppProvider>
     </HashRouter>

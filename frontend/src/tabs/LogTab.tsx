@@ -1,4 +1,5 @@
 import type { LogSettings } from '../types/settings';
+import Icon from '../components/common/Icon';
 
 type LogTabProps = {
   settings: LogSettings;
@@ -12,27 +13,37 @@ function toNumber(raw: string, fallback: number): number {
 
 export function LogTab({ settings, onChange }: LogTabProps) {
   return (
-    <section id="panel-log" role="tabpanel" aria-labelledby="tab-log" className="tab-panel">
-      <article className="panel-card panel-card-wide">
-        <h3>General Logging</h3>
+    <section className="flex flex-col gap-6">
+      <div className="page-title-group">
+        <h1 className="page-title">Log Configuration</h1>
+        <p className="page-desc">Manage how the server generates, stores, and rotates system log files.</p>
+      </div>
 
-        <div className="two-column-fields">
-          <div className="field-row">
-            <label htmlFor="log-directory">Log Directory</label>
+      <article className="card">
+        <h3 className="card-title">
+          <Icon name="description" className="icon-sm" />
+          General Logging
+        </h3>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-4 gap-y-1">
+          <div className="flex flex-col gap-2 mt-3">
+            <label htmlFor="log-directory" className="form-label">Log Directory</label>
             <input
               id="log-directory"
               name="log-directory"
               value={settings.logDirectory}
+              className="w-full"
               onChange={(event) => onChange({ ...settings, logDirectory: event.target.value })}
             />
           </div>
 
-          <div className="field-row">
-            <label htmlFor="log-level">Log Level</label>
+          <div className="flex flex-col gap-2 mt-3">
+            <label htmlFor="log-level" className="form-label">Log Level</label>
             <select
               id="log-level"
               name="log-level"
               value={settings.logLevel}
+              className="w-full"
               onChange={(event) =>
                 onChange({ ...settings, logLevel: event.target.value as LogSettings['logLevel'] })}
             >
@@ -43,12 +54,13 @@ export function LogTab({ settings, onChange }: LogTabProps) {
             </select>
           </div>
 
-          <div className="field-row">
-            <label htmlFor="log-format">Log Format</label>
+          <div className="flex flex-col gap-2 mt-3">
+            <label htmlFor="log-format" className="form-label">Log Format</label>
             <select
               id="log-format"
               name="log-format"
               value={settings.logFormat}
+              className="w-full"
               onChange={(event) =>
                 onChange({ ...settings, logFormat: event.target.value as LogSettings['logFormat'] })}
             >
@@ -57,12 +69,13 @@ export function LogTab({ settings, onChange }: LogTabProps) {
             </select>
           </div>
 
-          <div className="field-row">
-            <label htmlFor="output-destination">Output Destination</label>
+          <div className="flex flex-col gap-2 mt-3">
+            <label htmlFor="output-destination" className="form-label">Output Destination</label>
             <select
               id="output-destination"
               name="output-destination"
               value={settings.outputDestination}
+              className="w-full"
               onChange={(event) =>
                 onChange({ ...settings, outputDestination: event.target.value as LogSettings['outputDestination'] })}
             >
@@ -74,75 +87,90 @@ export function LogTab({ settings, onChange }: LogTabProps) {
         </div>
       </article>
 
-      <article className="panel-card panel-card-wide">
-        <h3>File Retention &amp; Rotation</h3>
+      <article className="card">
+        <h3 className="card-title">
+          <Icon name="folder" className="icon-sm" />
+          File Retention &amp; Rotation
+        </h3>
 
-        <div className="two-column-fields">
-          <div className="field-row">
-            <label htmlFor="filename-prefix">Filename Pattern</label>
-            <div className="inline-field compact-inline filename-pattern-wrap">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-4 gap-y-1">
+          <div className="flex flex-col gap-2 mt-3">
+            <label htmlFor="filename-prefix" className="form-label">Filename Pattern</label>
+            <div className="flex items-center w-full">
               <input
                 id="filename-prefix"
                 name="filename-prefix"
-                className="filename-pattern-input"
                 value={settings.filenamePrefix}
+                className="flex-1 min-w-0"
+                style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: 'none' }}
                 onChange={(event) => onChange({ ...settings, filenamePrefix: event.target.value })}
               />
-              <span className="suffix-pill filename-suffix">.log</span>
+              <span
+                className="inline-flex items-center justify-center shrink-0"
+                style={{
+                  height: 'var(--size-control-height)',
+                  padding: '0 12px',
+                  fontSize: 'var(--font-size-base)',
+                  color: 'var(--color-on-surface-tertiary)',
+                  backgroundColor: 'var(--color-surface-input)',
+                  border: '1px solid var(--color-border)',
+                  borderLeft: 'none',
+                  borderRadius: '0 var(--radius-base) var(--radius-base) 0',
+                }}
+              >.log</span>
             </div>
           </div>
 
-          <div className="field-row">
-            <label htmlFor="max-file-size">Max File Size (MB)</label>
+          <div className="flex flex-col gap-2 mt-3">
+            <label htmlFor="max-file-size" className="form-label">Max File Size (MB)</label>
             <input
               id="max-file-size"
               name="max-file-size"
               type="number"
               value={settings.maxFileSizeMb}
+              className="w-full"
               onChange={(event) =>
                 onChange({ ...settings, maxFileSizeMb: toNumber(event.target.value, settings.maxFileSizeMb) })}
             />
           </div>
 
-          <div className="field-row">
-            <label htmlFor="max-backups">Max Backups</label>
+          <div className="flex flex-col gap-2 mt-3">
+            <label htmlFor="max-backups" className="form-label">Max Backups</label>
             <input
               id="max-backups"
               name="max-backups"
               type="number"
               value={settings.maxBackups}
+              className="w-full"
               onChange={(event) => onChange({ ...settings, maxBackups: toNumber(event.target.value, settings.maxBackups) })}
             />
           </div>
 
-          <div className="field-row">
-            <label htmlFor="max-age-days">Max Age (Days)</label>
+          <div className="flex flex-col gap-2 mt-3">
+            <label htmlFor="max-age-days" className="form-label">Max Age (Days)</label>
             <input
               id="max-age-days"
               name="max-age-days"
               type="number"
               value={settings.maxAgeDays}
+              className="w-full"
               onChange={(event) => onChange({ ...settings, maxAgeDays: toNumber(event.target.value, settings.maxAgeDays) })}
             />
           </div>
         </div>
 
-        <label className="toggle-row" htmlFor="compress-logs">
+        <div className="flex items-center justify-between gap-2 mt-4 p-3 rounded-base border border-border bg-surface">
           <div>
-            <p className="toggle-title">Compress Old Logs</p>
-            <p className="field-hint">Automatically compress old log files to save disk space.</p>
+            <p className="text-sm font-medium text-on-surface">Compress Old Logs</p>
+            <p className="text-xs text-on-surface-hint mt-1">Automatically compress old log files to save disk space.</p>
           </div>
-          <span className="toggle-control">
-            <input
-              id="compress-logs"
-              name="compress-logs"
-              type="checkbox"
-              checked={settings.compressOldLogs}
-              onChange={(event) => onChange({ ...settings, compressOldLogs: event.target.checked })}
-            />
-            <span className="toggle-slider" />
-          </span>
-        </label>
+          <div
+            className={`switch ${settings.compressOldLogs ? 'active' : ''}`}
+            onClick={() => onChange({ ...settings, compressOldLogs: !settings.compressOldLogs })}
+          >
+            <div className="switch-thumb" />
+          </div>
+        </div>
       </article>
     </section>
   );

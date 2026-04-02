@@ -1,164 +1,57 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Sidebar } from './components/Sidebar';
-import { TopBar } from './components/TopBar';
-import { generalSettings, ffmpegDefaults, logSettings } from './data/mockSettings';
-import { getConfig, postConfig } from './services/configApi';
-import { buildFallbackApiConfigData, fromApiToDraft, toPostPayload } from './services/configMapper';
-import { FFmpegTab } from './tabs/FFmpegTab';
-import { GeneralTab } from './tabs/GeneralTab';
-import { LogTab } from './tabs/LogTab';
-import type { ConfigShadow, SettingsDraft, SettingsTab } from './types/settings';
+import { useEffect, useRef } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router';
+import SettingsPage from './pages/SettingsPage';
+import CameraPage from './pages/CameraPage';
+import EventPage from './pages/EventPage';
+import Toast from './components/common/Toast';
 
-type TabMeta = {
-  heading: string;
-  subheading: string;
-  breadcrumb: string;
-};
+const CHANNEL_NAME = 'app:neo-blackbox';
 
-const TAB_META: Record<SettingsTab, TabMeta> = {
-  general: {
-    heading: 'General Settings',
-    subheading: 'Configure core server paths and third-party integrations.',
-    breadcrumb: 'General Settings',
-  },
-  ffmpeg: {
-    heading: 'FFmpeg Default Settings',
-    subheading: 'Configure default probe arguments for optimized media processing.',
-    breadcrumb: 'FFmpeg Default Settings',
-  },
-  log: {
-    heading: 'Log Configuration',
-    subheading: 'Manage how the server generates, stores, and rotates system log files.',
-    breadcrumb: 'Log Configuration',
-  },
-};
+export default function App() {
+  const navigate = useNavigate();
+  const channelRef = useRef<BroadcastChannel | null>(null);
+  const handlersRef = useRef<Record<string, (payload: any) => void>>({});
 
-type SaveState = 'idle' | 'saving' | 'success' | 'error';
-
-function buildInitialState(): { draft: SettingsDraft; shadow: ConfigShadow } {
-  return fromApiToDraft(buildFallbackApiConfigData());
-}
-
-const INITIAL_STATE = buildInitialState();
-
-function errorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  return fallback;
-}
-
-function App() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-  const [draft, setDraft] = useState<SettingsDraft>(INITIAL_STATE.draft);
-  const [shadow, setShadow] = useState<ConfigShadow>(INITIAL_STATE.shadow);
-  const [saveState, setSaveState] = useState<SaveState>('idle');
-  const [saveStatusMessage, setSaveStatusMessage] = useState('');
-  const meta = useMemo(() => TAB_META[activeTab], [activeTab]);
+  handlersRef.current = {
+    navigate: (payload) => {
+      navigate(payload.path);
+    },
+    selectTab: (payload) => {
+      navigate(payload.path);
+    },
+    requestReady: () => {
+      channelRef.current?.postMessage({ type: 'ready' });
+    },
+  };
 
   useEffect(() => {
-    let cancelled = false;
+    const ch = new BroadcastChannel(CHANNEL_NAME);
+    channelRef.current = ch;
 
-    async function loadConfig() {
-      try {
-        const apiData = await getConfig();
-        if (cancelled) {
-          return;
-        }
-        const mapped = fromApiToDraft(apiData);
-        setDraft(mapped.draft);
-        setShadow(mapped.shadow);
-        setSaveState('idle');
-        setSaveStatusMessage('');
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-        setSaveState('error');
-        setSaveStatusMessage(`Failed to load config: ${errorMessage(error, 'unknown error')}. Using fallback values.`);
-      }
-    }
-
-    void loadConfig();
-
-    return () => {
-      cancelled = true;
+    ch.onmessage = (e) => {
+      const msg = e.data;
+      if (!msg || !msg.type) return;
+      const handler = handlersRef.current[msg.type];
+      if (handler) handler(msg.payload);
     };
+
+    ch.postMessage({ type: 'ready' });
+    return () => ch.close();
   }, []);
 
-  const resetSaveStatus = () => {
-    if (saveState !== 'idle' || saveStatusMessage !== '') {
-      setSaveState('idle');
-      setSaveStatusMessage('');
-    }
-  };
-
-  const handleGeneralChange = (nextGeneral: SettingsDraft['general']) => {
-    resetSaveStatus();
-    setDraft((prev) => ({ ...prev, general: nextGeneral }));
-  };
-
-  const handleFFmpegChange = (nextFFmpeg: SettingsDraft['ffmpeg']) => {
-    resetSaveStatus();
-    setDraft((prev) => ({ ...prev, ffmpeg: nextFFmpeg }));
-  };
-
-  const handleLogChange = (nextLog: SettingsDraft['log']) => {
-    resetSaveStatus();
-    setDraft((prev) => ({ ...prev, log: nextLog }));
-  };
-
-  const handleLoadExample = () => {
-    resetSaveStatus();
-    setDraft({ general: generalSettings, ffmpeg: ffmpegDefaults, log: logSettings });
-  };
-
-  const handleSave = async () => {
-    if (saveState === 'saving') {
-      return;
-    }
-
-    setSaveState('saving');
-    setSaveStatusMessage('');
-
-    try {
-      const payload = toPostPayload(draft, shadow);
-      const response = await postConfig(payload);
-      setSaveState('success');
-      setSaveStatusMessage(response.reason || 'Settings saved successfully.');
-    } catch (error) {
-      setSaveState('error');
-      setSaveStatusMessage(`Failed to save settings: ${errorMessage(error, 'unknown error')}`);
-    }
-  };
-
   return (
-    <div className="settings-shell">
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-
-      <main className="content-shell">
-        <TopBar
-          breadcrumb={meta.breadcrumb}
-          onSave={handleSave}
-          onLoadExample={handleLoadExample}
-          isSaving={saveState === 'saving'}
-          saveStatus={saveState}
-          saveStatusMessage={saveStatusMessage}
-        />
-
-        <section className="content-area">
-          <header className="content-header">
-            <h1>{meta.heading}</h1>
-            <p>{meta.subheading}</p>
-          </header>
-
-          {activeTab === 'general' && <GeneralTab settings={draft.general} onChange={handleGeneralChange} />}
-          {activeTab === 'ffmpeg' && <FFmpegTab settings={draft.ffmpeg} onChange={handleFFmpegChange} />}
-          {activeTab === 'log' && <LogTab settings={draft.log} onChange={handleLogChange} />}
-        </section>
-      </main>
-    </div>
+    <>
+      <div className="bg-surface-alt text-on-surface antialiased">
+        <main className="h-screen overflow-hidden bg-surface-alt">
+          <Routes>
+            <Route path="/" element={<Navigate to="/settings" replace />} />
+            <Route path="/settings/*" element={<SettingsPage />} />
+            <Route path="/camera/:alias/:id" element={<CameraPage />} />
+            <Route path="/events/:alias" element={<EventPage />} />
+          </Routes>
+        </main>
+      </div>
+      <Toast />
+    </>
   );
 }
-
-export default App;
