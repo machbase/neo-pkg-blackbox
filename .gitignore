@@ -1,2 +1,4 @@
 mk
 .vscode
+.claude/
+cgi-bin/bbox/

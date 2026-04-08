@@ -8,8 +8,7 @@ const service = require('service');
 const ROOT = path.resolve(path.dirname(process.argv[1]));
 const BBOX_DIR = path.join(ROOT, 'bbox');
 const SERVICE_NAME = 'neo-blackbox';
-const EXECUTABLE = path.join(BBOX_DIR, 'bin', 'neo-blackbox');
-const CONFIG_FILE = path.join(BBOX_DIR, 'config', 'config.yaml');
+const LAUNCHER = path.join(ROOT, 'blackbox-launcher.js');
 
 function reply(data) {
   const body = JSON.stringify(data);
@@ -21,15 +20,14 @@ function reply(data) {
 const method = (process.env.get('REQUEST_METHOD') || 'GET').toUpperCase();
 if (method !== 'POST') {
   reply({ ok: false, reason: 'method not allowed' });
-} else if (!fs.existsSync(EXECUTABLE)) {
-  reply({ ok: false, reason: 'bbox binary not found: ' + EXECUTABLE });
+} else if (!fs.existsSync(LAUNCHER)) {
+  reply({ ok: false, reason: 'launcher not found: ' + LAUNCHER });
 } else {
   service.install({
     name: SERVICE_NAME,
     enable: false,
     working_dir: BBOX_DIR,
-    executable: EXECUTABLE,
-    args: ['-config', CONFIG_FILE],
+    executable: LAUNCHER,
   }, (err) => {
     if (err) {
       reply({ ok: false, reason: err.message || String(err) });

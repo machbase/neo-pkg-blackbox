@@ -1,9 +1,9 @@
 'use strict';
 
+const path = require('path');
 const process = require('process');
 const http = require('http');
 const fs = require('fs');
-const path = require('path');
 const os = require('os');
 const tar = require('archive/tar');
 
@@ -30,9 +30,13 @@ function detectPlatform() {
 function getLatestRelease(callback) {
   const url = `https://api.github.com/repos/${REPO}/releases/latest`;
   http.get(url, { headers: { 'User-Agent': 'neo-pkg-blackbox' } }, (res) => {
+    if (!res.ok) {
+      callback(new Error('HTTP ' + res.statusCode + ': ' + res.text()));
+      return;
+    }
     const data = res.json();
     if (!data || !data.assets) {
-      callback(new Error('failed to fetch release info'));
+      callback(new Error('no assets in release response'));
       return;
     }
     callback(null, data);
