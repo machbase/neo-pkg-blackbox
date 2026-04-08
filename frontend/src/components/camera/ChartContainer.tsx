@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { loadScriptsSequentially } from '../../utils/scriptLoader';
+import { loadScriptsSequentially, prefixUrl } from '../../utils/scriptLoader';
 import type { TqlChartResponse } from '../../services/tqlApi';
 
 declare const echarts: any;
@@ -79,7 +79,7 @@ export default function ChartContainer({ data, parentRef }: ChartContainerProps)
 
   return (
     <>
-      {data?.cssAssets?.map((href, i) => <link key={i} rel="stylesheet" href={href} />)}
+      {data?.cssAssets?.map((href, i) => <link key={i} rel="stylesheet" href={prefixUrl(href)} />)}
       <div ref={wrapRef} />
     </>
   );

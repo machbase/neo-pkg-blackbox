@@ -8,7 +8,7 @@ export interface TqlChartResponse {
 }
 
 export async function postTql(baseUrl: string, tql: string): Promise<{ data: any; chartType: string | null }> {
-  const res = await fetch(`${baseUrl}/db/tql`, {
+  const res = await fetch(`${baseUrl || __API_PREFIX__}/db/tql`, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain' },
     body: tql,

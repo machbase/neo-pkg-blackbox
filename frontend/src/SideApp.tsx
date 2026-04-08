@@ -1,34 +1,22 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useServers } from './hooks/useServers';
 import { useCameras } from './hooks/useCameras';
-import { ConfirmProvider, useConfirm } from './context/ConfirmContext';
 import Icon from './components/common/Icon';
 import ServerItem from './components/side/ServerItem';
-import ServerModal, { type ServerModalMode } from './components/side/ServerModal';
 import type { CameraItem, MediaServerConfig } from './types/server';
 
 const CHANNEL_NAME = 'app:neo-blackbox';
 
-export default function SideApp() {
-  return (
-    <ConfirmProvider>
-      <SideAppInner />
-    </ConfirmProvider>
-  );
-}
+let confirmIdCounter = 0;
 
-function SideAppInner() {
-  const confirm = useConfirm();
+export default function SideApp() {
   const [ready, setReady] = useState(false);
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [sectionCollapsed, setSectionCollapsed] = useState(false);
   const { servers, addServer, updateServer, removeServer } = useServers();
   const { cameraMap, healthMap, eventCountMap, errorMap, loadedMap, loading, refresh } = useCameras(servers);
   const channelRef = useRef<BroadcastChannel | null>(null);
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<ServerModalMode>('new');
-  const [modalInitial, setModalInitial] = useState<MediaServerConfig | undefined>();
+  const pendingConfirmRef = useRef<{ id: string; resolve: (v: boolean) => void } | null>(null);
 
   useEffect(() => {
     const ch = new BroadcastChannel(CHANNEL_NAME);
@@ -37,14 +25,36 @@ function SideAppInner() {
       const msg = e.data;
       if (!msg || !msg.type) return;
       if (msg.type === 'ready') setReady(true);
+      if (msg.type === 'serverModalResult') {
+        const { action, config, mode, initialAlias } = msg.payload;
+        if (action === 'save' && config) {
+          if (mode === 'new') addServer(config);
+          else if (initialAlias) updateServer(initialAlias, config);
+        }
+      }
+      if (msg.type === 'confirmResult') {
+        const pending = pendingConfirmRef.current;
+        if (pending && pending.id === msg.payload.id) {
+          pending.resolve(msg.payload.confirmed);
+          pendingConfirmRef.current = null;
+        }
+      }
     };
     ch.postMessage({ type: 'requestReady' });
     return () => ch.close();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const send = useCallback((type: string, payload?: unknown) => {
+    channelRef.current?.postMessage({ type, payload });
   }, []);
 
-  const send = (type: string, payload: unknown) => {
-    channelRef.current?.postMessage({ type, payload });
-  };
+  const confirmViaMain = useCallback((title: string, message: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const id = `confirm-${++confirmIdCounter}`;
+      pendingConfirmRef.current = { id, resolve };
+      send('openConfirm', { title, message, id });
+    });
+  }, [send]);
 
   const handleCameraClick = (camera: CameraItem, config: MediaServerConfig) => {
     setActiveItem(`${config.alias}::${camera.id}`);
@@ -62,28 +72,16 @@ function SideAppInner() {
   };
 
   const handleAddServer = () => {
-    setModalMode('new');
-    setModalInitial(undefined);
-    setModalOpen(true);
+    send('openServerModal', { mode: 'new', existingAliases: servers.map((s) => s.alias) });
   };
 
   const handleDeleteServer = async (config: MediaServerConfig) => {
-    const ok = await confirm({ title: 'Delete Server', message: `Delete server "${config.alias}"?`, confirmText: 'Delete' });
+    const ok = await confirmViaMain('Delete Server', `Delete server "${config.alias}"?`);
     if (ok) removeServer(config.alias);
   };
 
   const handleServerSettings = (config: MediaServerConfig) => {
-    setModalMode('edit');
-    setModalInitial(config);
-    setModalOpen(true);
-  };
-
-  const handleModalSave = (config: MediaServerConfig) => {
-    if (modalMode === 'new') {
-      addServer(config);
-    } else if (modalInitial) {
-      updateServer(modalInitial.alias, config);
-    }
+    send('openServerModal', { mode: 'edit', initial: config, existingAliases: servers.map((s) => s.alias) });
   };
 
   if (!ready) {
@@ -174,15 +172,6 @@ function SideAppInner() {
           </nav>
         )}
       </div>
-
-      <ServerModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSave={handleModalSave}
-        mode={modalMode}
-        initial={modalInitial}
-        existingAliases={servers.map((s) => s.alias)}
-      />
     </div>
   );
 }

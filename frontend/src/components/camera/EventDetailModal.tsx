@@ -72,7 +72,17 @@ function EventMediaSection({ cameraId, timestamp, cameraDetail, event, config, a
 
   const handleProbeProgress = useCallback((t: Date) => { if (!isDragging) setProbePreviewTime(t); }, [isDragging]);
   const handleProbeStateChange = useCallback((p: boolean) => { if (!p) setProbePreviewTime(null); }, []);
-  const handleTimeUpdate = useCallback((t: Date) => setCurrentTime(t), []);
+  const handleTimeUpdate = useCallback((t: Date) => {
+    setCurrentTime(t);
+    // Also sync DOM refs on throttled updates (for paused/seek states)
+    const s = rangeStartRef.current;
+    const e = rangeEndRef.current;
+    if (e > s) {
+      const pct = Math.min(100, Math.max(0, ((t.getTime() - s) / (e - s)) * 100));
+      if (thumbRef.current) thumbRef.current.style.left = `${pct}%`;
+      if (progressRef.current) progressRef.current.style.width = `${pct}%`;
+    }
+  }, []);
 
   // High-frequency DOM-direct update — no React render
   const handlePlaybackTick = useCallback((timeMs: number) => {
@@ -269,8 +279,6 @@ function EventMediaSection({ cameraId, timestamp, cameraDetail, event, config, a
   const baseDisplay = player.currentTime || currentTime;
   const displayTime = !isDragging && syntheticTime ? syntheticTime : !isDragging && probePreviewTime ? probePreviewTime : baseDisplay;
   const sliderValue = Math.min(sliderMax, Math.max(sliderMin, displayTime?.getTime() ?? sliderMin));
-  const progress = sliderMax > sliderMin ? ((sliderValue - sliderMin) / (sliderMax - sliderMin)) * 100 : 0;
-  const clampedProgress = Math.min(100, Math.max(0, progress));
   const eventMarkerPct = getEventMarkerPercent(timestamp, rangeStart, rangeEnd);
   const showSeekControls = !player.isPlaying && !player.isLoading && !player.isProbing;
 
@@ -310,21 +318,21 @@ function EventMediaSection({ cameraId, timestamp, cameraDetail, event, config, a
                 onMouseLeave={() => { if (!isDragging) { setHoverTime(null); setHoverPct(null); } }}
               >
                 {/* Tooltips above track */}
-                {/* Current time badge — DOM-direct updated via ref */}
+                {/* Current time badge — position controlled exclusively by ref */}
                 <div ref={timeBadgeRef} style={{
-                  position: 'absolute', bottom: '100%', left: `${clampedProgress}%`, transform: 'translateX(-50%)',
+                  position: 'absolute', bottom: '100%', left: '0%', transform: 'translateX(-50%)',
                   padding: '2px 6px', borderRadius: 3, fontSize: 10, whiteSpace: 'nowrap',
+                  fontFamily: 'var(--font-family-mono)', letterSpacing: 0,
                   backgroundColor: 'var(--color-primary)', color: '#fff', pointerEvents: 'none', marginBottom: 4,
                   zIndex: 3,
-                }}>
-                  {formatTimeForSeekUnit(displayTime, seekUnit)}
-                </div>
+                }} />
 
                 {/* Hover tooltip — only when hovering, above current badge if overlapping */}
                 {hoverPct !== null && hoverTime && (
                   <div style={{
                     position: 'absolute', bottom: 'calc(100% + 20px)', left: `${hoverPct}%`, transform: 'translateX(-50%)',
                     padding: '2px 6px', borderRadius: 3, fontSize: 10, whiteSpace: 'nowrap',
+                    fontFamily: 'var(--font-family-mono)', letterSpacing: 0,
                     backgroundColor: 'var(--color-surface-elevated)', color: 'var(--color-on-surface-secondary)',
                     border: '1px solid var(--color-border)', pointerEvents: 'none', zIndex: 4,
                   }}>
@@ -348,17 +356,17 @@ function EventMediaSection({ cameraId, timestamp, cameraDetail, event, config, a
                   }} />
                 ))}
 
-                {/* Progress bar — ref for DOM-direct update */}
+                {/* Progress bar — position controlled exclusively by ref */}
                 <div ref={progressRef} style={{
                   position: 'absolute', top: '50%', marginTop: -2, left: 0, height: 4,
-                  width: `${clampedProgress}%`, backgroundColor: 'rgba(0, 108, 210, 0.5)',
+                  width: '0%', backgroundColor: 'rgba(0, 108, 210, 0.5)',
                   borderRadius: 2, pointerEvents: 'none',
                 }} />
 
-                {/* Thumb — ref for DOM-direct update */}
+                {/* Thumb — position controlled exclusively by ref */}
                 <div ref={thumbRef} style={{
                   position: 'absolute', top: '50%', marginTop: -6, width: 12, height: 12,
-                  left: `${clampedProgress}%`, transform: 'translateX(-50%)',
+                  left: '0%', transform: 'translateX(-50%)',
                   borderRadius: '50%', backgroundColor: 'var(--color-primary-hover)',
                   border: '2px solid #fff', boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
                   pointerEvents: 'none', zIndex: 2,

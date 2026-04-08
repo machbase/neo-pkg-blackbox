@@ -15,7 +15,12 @@ const entries: Record<string, string> = {
 
 const entry = process.env.VITE_ENTRY || "index";
 
+const apiPrefix = process.env.VITE_API_PREFIX || "";
+
 export default defineConfig({
+    define: {
+        __API_PREFIX__: JSON.stringify(apiPrefix),
+    },
     plugins: [react(), tailwindcss(), viteSingleFile()],
     build: {
         rollupOptions: {

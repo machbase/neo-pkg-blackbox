@@ -129,7 +129,7 @@ export default function EventSyncChart({
     let sQuery = ${JSON.stringify(queryList)};
     let sCount = 0;
     function getData(aTql, aIdx) {
-        fetch("/db/tql", {
+        fetch("${__API_PREFIX__}/db/tql", {
             method: "POST",
             headers: {
                 "Accept": "application/json, text/plain, */*",
