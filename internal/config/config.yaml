@@ -1,0 +1,50 @@
+server:
+  addr: 0.0.0.0:8000
+  camera_dir: "../bin/cameras"
+  mvs_dir: "../ai/mvs"
+  data_dir: "../bin/data"
+
+machbase:
+  scheme: "http"
+  host: 127.0.0.1
+  port: 5654
+  timeout_seconds: 30
+  api_token: ""
+
+mediamtx:
+  binary: "../tools/mediamtx"          # MediaMTX 바이너리 경로 (비어있으면 외부 서버 사용)
+  config_file: "../tools/mediamtx.yml" # MediaMTX 설정 파일 경로 (비어있으면 바이너리 디렉토리에서 자동 탐색)
+  host: 127.0.0.1
+  port: 9997                           # MediaMTX HTTP API 포트
+
+ffmpeg:
+  binary: "../tools/ffmpeg"
+
+  defaults:
+    probe_binary: "../tools/ffprobe"
+    probe_args:
+      - flag: v
+        value: "error"
+      - flag: select_streams
+        value: "v:0"
+      - flag: show_entries
+        value: "packet=pts_time,duration_time"
+      - flag: of
+        value: "csv=p=0"
+
+ai:
+  binary: "../ai/blackbox-ai-manager"  # AI manager 바이너리 경로 (비어있으면 비활성화)
+  config_file: "../ai/config.json"     # AI manager config.json 경로
+
+# 로그 설정 (logrus + lumberjack)
+log:
+  dir: "../logs"   # 모든 로그 파일 디렉토리 (앱 로그 + ffmpeg 로그)
+  level: "info"    # debug, info, warn, error, fatal, panic
+  format: "json"   # json or text
+  output: "both"   # stdout, file, both
+  file:
+    filename: "blackbox.log"  # 파일명만 (dir과 결합됨)
+    max_size: 100      # MB
+    max_backups: 10    # 백업 파일 개수
+    max_age: 30        # days
+    compress: true     # 압축 여부
