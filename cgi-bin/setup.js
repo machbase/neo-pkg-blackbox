@@ -1,0 +1,129 @@
+'use strict';
+
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const tar = require('archive/tar');
+
+const ROOT = path.resolve(path.dirname(process.argv[1]));
+const BBOX_DIR = path.join(ROOT, 'bbox');
+const REPO = 'machbase/neo-pkg-bbox';
+
+function detectPlatform() {
+  const platform = os.platform();
+  const arch = os.arch();
+
+  let osPart;
+  if (platform === 'darwin') osPart = 'darwin';
+  else if (platform === 'windows') osPart = 'windows';
+  else osPart = 'linux';
+
+  let archPart;
+  if (arch === 'aarch64' || arch === 'arm64') archPart = 'arm64';
+  else archPart = 'amd64';
+
+  return `${osPart}-${archPart}`;
+}
+
+function getLatestRelease(callback) {
+  const url = `https://api.github.com/repos/${REPO}/releases/latest`;
+  http.get(url, { headers: { 'User-Agent': 'neo-pkg-blackbox' } }, (res) => {
+    const data = res.json();
+    if (!data || !data.assets) {
+      callback(new Error('failed to fetch release info'));
+      return;
+    }
+    callback(null, data);
+  });
+}
+
+function findAsset(release, platform) {
+  const pattern = `neo-blackbox-${platform}.tar.gz`;
+  for (const asset of release.assets) {
+    if (asset.name === pattern) {
+      return asset;
+    }
+  }
+  return null;
+}
+
+function downloadAsset(asset, destPath, callback) {
+  const url = asset.browser_download_url;
+  http.get(url, { headers: { 'User-Agent': 'neo-pkg-blackbox' } }, (res) => {
+    const buffer = res.readBodyBuffer();
+    if (!buffer || buffer.byteLength === 0) {
+      callback(new Error('empty download'));
+      return;
+    }
+    fs.writeFileSync(destPath, buffer);
+    callback(null);
+  });
+}
+
+function extractTarGz(tarPath, destDir) {
+  const zlib = require('zlib');
+  const compressed = fs.readFileSync(tarPath);
+  const decompressed = zlib.gunzipSync(compressed);
+  const entries = tar.untarSync(decompressed);
+
+  fs.mkdirSync(destDir, { recursive: true });
+
+  for (const entry of entries) {
+    const parts = entry.name.split('/');
+    if (parts.length > 1) {
+      parts.shift();
+    }
+    const relativePath = parts.join('/');
+    if (!relativePath) continue;
+
+    const fullPath = path.join(destDir, relativePath);
+    if (entry.isDir) {
+      fs.mkdirSync(fullPath, { recursive: true });
+    } else {
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+      fs.writeFileSync(fullPath, entry.data);
+    }
+  }
+}
+
+// ── main ──
+
+const platform = detectPlatform();
+console.println('platform:', platform);
+
+console.println('fetching latest release...');
+getLatestRelease((err, release) => {
+  if (err) {
+    console.println('ERROR:', err.message);
+    process.exit(1);
+  }
+
+  console.println('release:', release.tag_name);
+
+  const asset = findAsset(release, platform);
+  if (!asset) {
+    console.println('ERROR: no asset found for', platform);
+    process.exit(1);
+  }
+
+  console.println('downloading:', asset.name);
+  const tmpFile = path.join(ROOT, '.bbox-download.tar.gz');
+  downloadAsset(asset, tmpFile, (dlErr) => {
+    if (dlErr) {
+      console.println('ERROR:', dlErr.message);
+      process.exit(1);
+    }
+
+    console.println('extracting to:', BBOX_DIR);
+    try {
+      extractTarGz(tmpFile, BBOX_DIR);
+      fs.unlinkSync(tmpFile);
+    } catch (exErr) {
+      console.println('ERROR:', exErr.message);
+      process.exit(1);
+    }
+
+    console.println('done. bbox installed at', BBOX_DIR);
+  });
+});
