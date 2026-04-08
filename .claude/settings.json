@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/aloha/machbase/neo-pkg-replication/cgi-bin/**)",
+      "Read(//home/aloha/machbase/neo-pkg-replication/cgi-bin/conf.d/**)",
+      "Read(//home/aloha/machbase/neo-pkg-replication/cgi-bin/api/**)"
+    ]
+  }
+}
