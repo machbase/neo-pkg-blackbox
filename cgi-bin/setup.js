@@ -54,21 +54,45 @@ function findAsset(release, platform) {
 }
 
 function downloadAsset(asset, destPath, callback) {
-  const url = asset.browser_download_url;
-  http.get(url, { headers: { 'User-Agent': 'neo-pkg-blackbox' } }, (res) => {
-    const buffer = res.readBodyBuffer();
-    if (!buffer || buffer.byteLength === 0) {
-      callback(new Error('empty download'));
-      return;
-    }
-    fs.writeFileSync(destPath, buffer);
-    callback(null);
-  });
+  const MAX_REDIRECTS = 5;
+  const headers = { 'User-Agent': 'neo-pkg-blackbox' };
+
+  function fetch(url, remaining) {
+    http.get(url, { headers }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400) {
+        const location = res.headers && res.headers.location;
+        if (!location) {
+          callback(new Error('redirect ' + res.statusCode + ' without location'));
+          return;
+        }
+        if (remaining <= 0) {
+          callback(new Error('too many redirects'));
+          return;
+        }
+        console.println('redirect →', location);
+        fetch(location, remaining - 1);
+        return;
+      }
+      if (!res.ok) {
+        callback(new Error('HTTP ' + res.statusCode));
+        return;
+      }
+      const buffer = res.readBodyBuffer();
+      if (!buffer || buffer.byteLength === 0) {
+        callback(new Error('empty download'));
+        return;
+      }
+      fs.writeFileSync(destPath, buffer);
+      callback(null);
+    });
+  }
+
+  fetch(asset.browser_download_url, MAX_REDIRECTS);
 }
 
 function extractTarGz(tarPath, destDir) {
   const zlib = require('zlib');
-  const compressed = fs.readFileSync(tarPath);
+  const compressed = fs.readFileSync(tarPath, { encoding: 'buffer' });
   const decompressed = zlib.gunzipSync(compressed);
   const entries = tar.untarSync(decompressed);
 
@@ -88,6 +112,9 @@ function extractTarGz(tarPath, destDir) {
     } else {
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, entry.data);
+      if (entry.mode) {
+        fs.chmod(fullPath, entry.mode & 0o777);
+      }
     }
   }
 }
