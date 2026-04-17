@@ -119,5 +119,12 @@ download(url, tmpFile, function(err) {
     process.exit(1);
   }
 
+  // launcher.js 실행 권한 부여 (pkg copy 시 권한이 유지되지 않음)
+  var launcherPath = path.join(ROOT, 'blackbox-launcher.js');
+  if (fs.existsSync(launcherPath)) {
+    fs.chmod(launcherPath, 0o755);
+    console.println('chmod +x', launcherPath);
+  }
+
   console.println('done. bbox installed at', BBOX_DIR);
 });
