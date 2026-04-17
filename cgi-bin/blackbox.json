@@ -1,0 +1,7 @@
+{
+  "name": "neo-blackbox",
+  "enable": false,
+  "working_dir": "/work/public/cgi-bin/blackbox/bbox",
+  "executable": "@/work/public/cgi-bin/blackbox/bbox/bin/neo-blackbox",
+  "args": ["-config", "./config/config.yaml", "-web"]
+}
