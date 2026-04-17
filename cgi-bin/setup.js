@@ -1,66 +1,40 @@
 'use strict';
 
-const path = require('path');
-const process = require('process');
-const http = require('http');
-const fs = require('fs');
-const os = require('os');
-const tar = require('archive/tar');
+var path = require('path');
+var process = require('process');
+var http = require('http');
+var fs = require('fs');
+var os = require('os');
+var tar = require('archive/tar');
 
-const ROOT = path.resolve(path.dirname(process.argv[1]));
-const BBOX_DIR = path.join(ROOT, 'bbox');
-const REPO = 'machbase/neo-pkg-bbox';
+var ROOT = path.resolve(path.dirname(process.argv[1]));
+var BBOX_DIR = path.join(ROOT, 'bbox');
+var REPO = 'machbase/neo-pkg-bbox';
 
 function detectPlatform() {
-  const platform = os.platform();
-  const arch = os.arch();
+  var platform = os.platform();
+  var arch = os.arch();
 
-  let osPart;
+  var osPart;
   if (platform === 'darwin') osPart = 'darwin';
   else if (platform === 'windows') osPart = 'windows';
   else osPart = 'linux';
 
-  let archPart;
+  var archPart;
   if (arch === 'aarch64' || arch === 'arm64') archPart = 'arm64';
   else archPart = 'amd64';
 
-  return `${osPart}-${archPart}`;
+  return osPart + '-' + archPart;
 }
 
-function getLatestRelease(callback) {
-  const url = `https://api.github.com/repos/${REPO}/releases/latest`;
-  http.get(url, { headers: { 'User-Agent': 'neo-pkg-blackbox' } }, (res) => {
-    if (!res.ok) {
-      callback(new Error('HTTP ' + res.statusCode + ': ' + res.text()));
-      return;
-    }
-    const data = res.json();
-    if (!data || !data.assets) {
-      callback(new Error('no assets in release response'));
-      return;
-    }
-    callback(null, data);
-  });
-}
+function download(url, destPath, callback) {
+  var MAX_REDIRECTS = 10;
+  var headers = { 'User-Agent': 'neo-pkg-blackbox' };
 
-function findAsset(release, platform) {
-  const pattern = `neo-blackbox-${platform}.tar.gz`;
-  for (const asset of release.assets) {
-    if (asset.name === pattern) {
-      return asset;
-    }
-  }
-  return null;
-}
-
-function downloadAsset(asset, destPath, callback) {
-  const MAX_REDIRECTS = 5;
-  const headers = { 'User-Agent': 'neo-pkg-blackbox' };
-
-  function fetch(url, remaining) {
-    http.get(url, { headers }, (res) => {
+  function fetch(fetchUrl, remaining) {
+    http.get(fetchUrl, { headers: headers }, function(res) {
       if (res.statusCode >= 300 && res.statusCode < 400) {
-        const location = res.headers && res.headers.location;
+        var location = res.headers && res.headers.location;
         if (!location) {
           callback(new Error('redirect ' + res.statusCode + ' without location'));
           return;
@@ -69,7 +43,6 @@ function downloadAsset(asset, destPath, callback) {
           callback(new Error('too many redirects'));
           return;
         }
-        console.println('redirect →', location);
         fetch(location, remaining - 1);
         return;
       }
@@ -77,7 +50,7 @@ function downloadAsset(asset, destPath, callback) {
         callback(new Error('HTTP ' + res.statusCode));
         return;
       }
-      const buffer = res.readBodyBuffer();
+      var buffer = res.readBodyBuffer();
       if (!buffer || buffer.byteLength === 0) {
         callback(new Error('empty download'));
         return;
@@ -87,26 +60,27 @@ function downloadAsset(asset, destPath, callback) {
     });
   }
 
-  fetch(asset.browser_download_url, MAX_REDIRECTS);
+  fetch(url, MAX_REDIRECTS);
 }
 
 function extractTarGz(tarPath, destDir) {
-  const zlib = require('zlib');
-  const compressed = fs.readFileSync(tarPath, { encoding: 'buffer' });
-  const decompressed = zlib.gunzipSync(compressed);
-  const entries = tar.untarSync(decompressed);
+  var zlib = require('zlib');
+  var compressed = fs.readFileSync(tarPath, { encoding: 'buffer' });
+  var decompressed = zlib.gunzipSync(compressed);
+  var entries = tar.untarSync(decompressed);
 
   fs.mkdirSync(destDir, { recursive: true });
 
-  for (const entry of entries) {
-    const parts = entry.name.split('/');
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i];
+    var parts = entry.name.split('/');
     if (parts.length > 1) {
       parts.shift();
     }
-    const relativePath = parts.join('/');
+    var relativePath = parts.join('/');
     if (!relativePath) continue;
 
-    const fullPath = path.join(destDir, relativePath);
+    var fullPath = path.join(destDir, relativePath);
     if (entry.isDir) {
       fs.mkdirSync(fullPath, { recursive: true });
     } else {
@@ -121,41 +95,29 @@ function extractTarGz(tarPath, destDir) {
 
 // ── main ──
 
-const platform = detectPlatform();
-console.println('platform:', platform);
+var platform = detectPlatform();
+var assetName = 'neo-blackbox-' + platform + '.tar.gz';
+// GitHub /releases/latest/download/ 는 최신 릴리스 asset으로 자동 리다이렉트 (API rate limit 없음)
+var url = 'https://github.com/' + REPO + '/releases/latest/download/' + assetName;
 
-console.println('fetching latest release...');
-getLatestRelease((err, release) => {
+console.println('platform:', platform);
+console.println('downloading:', url);
+
+var tmpFile = path.join(ROOT, '.bbox-download.tar.gz');
+download(url, tmpFile, function(err) {
   if (err) {
     console.println('ERROR:', err.message);
     process.exit(1);
   }
 
-  console.println('release:', release.tag_name);
-
-  const asset = findAsset(release, platform);
-  if (!asset) {
-    console.println('ERROR: no asset found for', platform);
+  console.println('extracting to:', BBOX_DIR);
+  try {
+    extractTarGz(tmpFile, BBOX_DIR);
+    fs.unlinkSync(tmpFile);
+  } catch (exErr) {
+    console.println('ERROR:', exErr.message);
     process.exit(1);
   }
 
-  console.println('downloading:', asset.name);
-  const tmpFile = path.join(ROOT, '.bbox-download.tar.gz');
-  downloadAsset(asset, tmpFile, (dlErr) => {
-    if (dlErr) {
-      console.println('ERROR:', dlErr.message);
-      process.exit(1);
-    }
-
-    console.println('extracting to:', BBOX_DIR);
-    try {
-      extractTarGz(tmpFile, BBOX_DIR);
-      fs.unlinkSync(tmpFile);
-    } catch (exErr) {
-      console.println('ERROR:', exErr.message);
-      process.exit(1);
-    }
-
-    console.println('done. bbox installed at', BBOX_DIR);
-  });
+  console.println('done. bbox installed at', BBOX_DIR);
 });
