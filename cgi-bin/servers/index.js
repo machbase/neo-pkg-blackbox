@@ -41,9 +41,22 @@ query.split('&').forEach(function(pair) {
 });
 
 if (method === 'GET') {
-  // GET: 전체 목록 반환
+  // GET: ?alias=xxx 이면 단건 조회, 없으면 전체 목록
   var servers = loadServers();
-  reply(200, { ok: true, data: servers });
+  var alias = params.alias;
+  if (alias) {
+    var found = null;
+    for (var i = 0; i < servers.length; i++) {
+      if (servers[i].alias === alias) { found = servers[i]; break; }
+    }
+    if (!found) {
+      reply(404, { ok: false, reason: 'server not found: ' + alias });
+    } else {
+      reply(200, { ok: true, data: found });
+    }
+  } else {
+    reply(200, { ok: true, data: servers });
+  }
 
 } else if (method === 'POST') {
   // POST: 새 서버 추가 { alias, ip, port }
