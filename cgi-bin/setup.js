@@ -119,6 +119,12 @@ download(url, tmpFile, function(err) {
     process.exit(1);
   }
 
+  // macOS quarantine 속성 제거 (인터넷에서 받은 파일 실행 차단 방지)
+  if (os.platform() === 'darwin') {
+    console.println('removing quarantine attributes...');
+    process.exec('@/usr/bin/xattr', '-cr', BBOX_DIR);
+  }
+
   // launcher.js 실행 권한 부여 (pkg copy 시 권한이 유지되지 않음)
   var launcherPath = path.join(ROOT, 'blackbox-launcher.js');
   if (fs.existsSync(launcherPath)) {
