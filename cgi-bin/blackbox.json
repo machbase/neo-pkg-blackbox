@@ -1,7 +1,6 @@
 {
   "name": "neo-blackbox",
   "enable": false,
-  "working_dir": "/work/public/neo-pkg-blackbox/cgi-bin/bbox",
-  "executable": "@/work/public/neo-pkg-blackbox/cgi-bin/bbox/bin/neo-blackbox",
-  "args": ["-config", "./config/config.json", "-web"]
+  "working_dir": "/work/public/neo-pkg-blackbox/cgi-bin",
+  "executable": "./blackbox-launcher.js"
 }
