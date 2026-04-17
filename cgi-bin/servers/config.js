@@ -60,8 +60,17 @@ var DEFAULTS = {
   }
 };
 
-function reply(status, data) {
-  var body = JSON.stringify(data);
+var _tick = Date.now();
+
+function reply(status, data, reason) {
+  var elapse = (Date.now() - _tick) + 'ms';
+  var success = status >= 200 && status < 300;
+  var body = JSON.stringify({
+    success: success,
+    reason: reason || (success ? 'success' : 'error'),
+    elapse: elapse,
+    data: data !== undefined ? data : null
+  });
   process.stdout.write('Content-Type: application/json\r\n');
   process.stdout.write('Status: ' + status + '\r\n');
   process.stdout.write('\r\n');
@@ -163,51 +172,48 @@ function saveConfig(cfg) {
 var method = (process.env.get('REQUEST_METHOD') || 'GET').toUpperCase();
 
 if (method === 'GET') {
-  // GET: 현재 config 반환 (password 제외)
   var cfg = loadCurrentConfig();
   if (!cfg) {
-    reply(404, { ok: false, reason: 'config not found, POST to create' });
+    reply(404, null, 'config not found, POST to create');
   } else {
     var res = JSON.parse(JSON.stringify(cfg));
     delete res.machbase.password;
-    reply(200, { ok: true, data: res });
+    reply(200, res);
   }
 
 } else if (method === 'POST') {
-  // POST: 새 config 생성 (기본값 + 받은 값)
   var existing = loadCurrentConfig();
   if (existing) {
-    reply(409, { ok: false, reason: 'config already exists, use PUT to update' });
+    reply(409, null, 'config already exists, use PUT to update');
   } else {
     var body = parseBody();
     if (!body) {
-      reply(400, { ok: false, reason: 'request body is required' });
+      reply(400, null, 'request body is required');
     } else {
       var cfg = JSON.parse(JSON.stringify(DEFAULTS));
       merge(cfg, body);
       fixNumbers(cfg);
       saveConfig(cfg);
-      reply(201, { ok: true, data: { saved: BBOX_CONFIG } });
+      reply(201, null);
     }
   }
 
 } else if (method === 'PUT') {
-  // PUT: 기존 config에서 받은 필드만 덮어쓰기
   var existing = loadCurrentConfig();
   if (!existing) {
-    reply(404, { ok: false, reason: 'config not found, POST to create first' });
+    reply(404, null, 'config not found, POST to create first');
   } else {
     var body = parseBody();
     if (!body) {
-      reply(400, { ok: false, reason: 'request body is required' });
+      reply(400, null, 'request body is required');
     } else {
       merge(existing, body);
       fixNumbers(existing);
       saveConfig(existing);
-      reply(200, { ok: true, data: { saved: BBOX_CONFIG } });
+      reply(200, null);
     }
   }
 
 } else {
-  reply(405, { ok: false, reason: 'method not allowed' });
+  reply(405, null, 'method not allowed');
 }
