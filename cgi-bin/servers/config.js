@@ -5,7 +5,7 @@ var process = require('process');
 var fs = require('fs');
 
 var ROOT = path.resolve(path.dirname(process.argv[1]));
-var BBOX_CONFIG = path.join(ROOT, '..', 'bbox', 'config', 'config.yaml');
+var BBOX_CONFIG = path.join(ROOT, '..', 'bbox', 'config', 'config.json');
 
 var DEFAULTS = {
   server: {
@@ -88,42 +88,6 @@ function parseBody() {
   return JSON.parse(raw);
 }
 
-function toYaml(obj, indent) {
-  indent = indent || 0;
-  var lines = [];
-  var prefix = '';
-  for (var i = 0; i < indent; i++) prefix += '  ';
-
-  for (var key in obj) {
-    var val = obj[key];
-    if (val === null || val === undefined) continue;
-
-    if (Array.isArray(val)) {
-      lines.push(prefix + key + ':');
-      for (var j = 0; j < val.length; j++) {
-        var item = val[j];
-        if (typeof item === 'object') {
-          var keys = Object.keys(item);
-          lines.push(prefix + '  - ' + keys[0] + ': ' + JSON.stringify(String(item[keys[0]])));
-          for (var k = 1; k < keys.length; k++) {
-            lines.push(prefix + '    ' + keys[k] + ': ' + JSON.stringify(String(item[keys[k]])));
-          }
-        } else {
-          lines.push(prefix + '  - ' + JSON.stringify(String(item)));
-        }
-      }
-    } else if (typeof val === 'object') {
-      lines.push(prefix + key + ':');
-      lines.push(toYaml(val, indent + 1));
-    } else if (typeof val === 'string') {
-      lines.push(prefix + key + ': ' + JSON.stringify(val));
-    } else {
-      lines.push(prefix + key + ': ' + String(val));
-    }
-  }
-  return lines.join('\n');
-}
-
 function merge(base, override) {
   if (!override) return base;
   for (var key in override) {
@@ -152,9 +116,8 @@ function fixNumbers(cfg) {
 }
 
 function loadCurrentConfig() {
-  var jsonPath = BBOX_CONFIG + '.json';
-  if (fs.existsSync(jsonPath)) {
-    return JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  if (fs.existsSync(BBOX_CONFIG)) {
+    return JSON.parse(fs.readFileSync(BBOX_CONFIG, 'utf8'));
   }
   return null;
 }
@@ -164,9 +127,7 @@ function saveConfig(cfg) {
   if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true });
   }
-  var yaml = toYaml(cfg);
-  fs.writeFileSync(BBOX_CONFIG, yaml, 'utf8');
-  fs.writeFileSync(BBOX_CONFIG + '.json', JSON.stringify(cfg, null, 2), 'utf8');
+  fs.writeFileSync(BBOX_CONFIG, JSON.stringify(cfg, null, 2), 'utf8');
 }
 
 var method = (process.env.get('REQUEST_METHOD') || 'GET').toUpperCase();

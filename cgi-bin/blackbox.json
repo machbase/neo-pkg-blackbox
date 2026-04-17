@@ -3,5 +3,5 @@
   "enable": false,
   "working_dir": "/work/public/neo-pkg-blackbox/cgi-bin/bbox",
   "executable": "@/work/public/neo-pkg-blackbox/cgi-bin/bbox/bin/neo-blackbox",
-  "args": ["-config", "./config/config.yaml", "-web"]
+  "args": ["-config", "./config/config.json", "-web"]
 }
