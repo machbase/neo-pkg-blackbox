@@ -121,8 +121,12 @@ download(url, tmpFile, function(err) {
 
   // macOS quarantine 속성 제거 (인터넷에서 받은 파일 실행 차단 방지)
   if (os.platform() === 'darwin') {
-    console.println('removing quarantine attributes...');
-    process.exec('@/usr/bin/xattr', '-cr', BBOX_DIR);
+    // JSH 가상경로 → 호스트 OS 경로 변환
+    var hostWorkDir = path.dirname(process.execPath);
+    var relBboxDir = BBOX_DIR.replace(/^\/work\//, '');
+    var hostBboxDir = path.join(hostWorkDir, relBboxDir);
+    console.println('removing quarantine attributes...', hostBboxDir);
+    process.exec('@/usr/bin/xattr', '-cr', hostBboxDir);
   }
 
   // launcher.js 실행 권한 부여 (pkg copy 시 권한이 유지되지 않음)
