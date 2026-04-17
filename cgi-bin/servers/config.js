@@ -1,13 +1,12 @@
 'use strict';
 
-const path = require('path');
-const process = require('process');
-const fs = require('fs');
+var path = require('path');
+var process = require('process');
+var fs = require('fs');
 
-const ROOT = path.resolve(path.dirname(process.argv[1]));
-const BBOX_CONFIG = path.join(ROOT, '..', 'bbox', 'config', 'config.yaml');
+var ROOT = path.resolve(path.dirname(process.argv[1]));
+var BBOX_CONFIG = path.join(ROOT, '..', 'bbox', 'config', 'config.yaml');
 
-// 기본 config 템플릿 (경로는 고정, 사용자 설정만 변경 가능)
 var DEFAULTS = {
   server: {
     addr: '0.0.0.0:8000',
@@ -75,7 +74,6 @@ function parseBody() {
   return JSON.parse(raw);
 }
 
-// 간단한 YAML 생성 (의존성 없이)
 function toYaml(obj, indent) {
   indent = indent || 0;
   var lines = [];
@@ -91,7 +89,6 @@ function toYaml(obj, indent) {
       for (var j = 0; j < val.length; j++) {
         var item = val[j];
         if (typeof item === 'object') {
-          // array of objects: - flag: v\n  value: error
           var keys = Object.keys(item);
           lines.push(prefix + '  - ' + keys[0] + ': ' + JSON.stringify(String(item[keys[0]])));
           for (var k = 1; k < keys.length; k++) {
@@ -113,13 +110,39 @@ function toYaml(obj, indent) {
   return lines.join('\n');
 }
 
-// 현재 config.yaml을 파싱 (간단한 YAML 파서 대신 기본값 + 저장된 JSON 사용)
+function merge(base, override) {
+  if (!override) return base;
+  for (var key in override) {
+    if (override[key] !== undefined && override[key] !== null) {
+      if (typeof override[key] === 'object' && !Array.isArray(override[key]) && typeof base[key] === 'object' && !Array.isArray(base[key])) {
+        base[key] = merge(base[key], override[key]);
+      } else {
+        base[key] = override[key];
+      }
+    }
+  }
+  return base;
+}
+
+function fixNumbers(cfg) {
+  if (cfg.machbase) {
+    if (cfg.machbase.port) cfg.machbase.port = Number(cfg.machbase.port);
+    if (cfg.machbase.timeout_seconds) cfg.machbase.timeout_seconds = Number(cfg.machbase.timeout_seconds);
+  }
+  if (cfg.mediamtx && cfg.mediamtx.port) cfg.mediamtx.port = Number(cfg.mediamtx.port);
+  if (cfg.log && cfg.log.file) {
+    if (cfg.log.file.max_size) cfg.log.file.max_size = Number(cfg.log.file.max_size);
+    if (cfg.log.file.max_backups) cfg.log.file.max_backups = Number(cfg.log.file.max_backups);
+    if (cfg.log.file.max_age) cfg.log.file.max_age = Number(cfg.log.file.max_age);
+  }
+}
+
 function loadCurrentConfig() {
   var jsonPath = BBOX_CONFIG + '.json';
   if (fs.existsSync(jsonPath)) {
     return JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
   }
-  return JSON.parse(JSON.stringify(DEFAULTS));
+  return null;
 }
 
 function saveConfig(cfg) {
@@ -127,74 +150,57 @@ function saveConfig(cfg) {
   if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true });
   }
-  // YAML로 저장
   var yaml = toYaml(cfg);
   fs.writeFileSync(BBOX_CONFIG, yaml, 'utf8');
-  // JSON 백업 (다음 읽기용)
   fs.writeFileSync(BBOX_CONFIG + '.json', JSON.stringify(cfg, null, 2), 'utf8');
 }
 
 var method = (process.env.get('REQUEST_METHOD') || 'GET').toUpperCase();
 
 if (method === 'GET') {
-  // GET: 현재 config 반환
+  // GET: 현재 config 반환 (password 제외)
   var cfg = loadCurrentConfig();
-  reply(200, {
-    ok: true,
-    data: {
-      server: { addr: cfg.server.addr },
-      machbase: {
-        scheme: cfg.machbase.scheme,
-        host: cfg.machbase.host,
-        port: cfg.machbase.port,
-        timeout_seconds: cfg.machbase.timeout_seconds,
-        user: cfg.machbase.user
-      },
-      log: {
-        level: cfg.log.level,
-        format: cfg.log.format,
-        output: cfg.log.output
-      }
-    }
-  });
+  if (!cfg) {
+    reply(404, { ok: false, reason: 'config not found, POST to create' });
+  } else {
+    var res = JSON.parse(JSON.stringify(cfg));
+    delete res.machbase.password;
+    reply(200, { ok: true, data: res });
+  }
 
 } else if (method === 'POST') {
-  // POST: config 업데이트 (사용자 변경 가능 필드만)
-  // {
-  //   "server": { "addr": "0.0.0.0:8000" },
-  //   "machbase": { "scheme": "http", "host": "192.168.0.87", "port": 5654, "user": "sys", "password": "manager" },
-  //   "log": { "level": "info", "format": "json", "output": "both" }
-  // }
-  var body = parseBody();
-  if (!body) {
-    reply(400, { ok: false, reason: 'request body is required' });
+  // POST: 새 config 생성 (기본값 + 받은 값)
+  var existing = loadCurrentConfig();
+  if (existing) {
+    reply(409, { ok: false, reason: 'config already exists, use PUT to update' });
   } else {
-    var cfg = JSON.parse(JSON.stringify(DEFAULTS));
-
-    // server
-    if (body.server) {
-      if (body.server.addr) cfg.server.addr = body.server.addr;
+    var body = parseBody();
+    if (!body) {
+      reply(400, { ok: false, reason: 'request body is required' });
+    } else {
+      var cfg = JSON.parse(JSON.stringify(DEFAULTS));
+      merge(cfg, body);
+      fixNumbers(cfg);
+      saveConfig(cfg);
+      reply(201, { ok: true, data: { saved: BBOX_CONFIG } });
     }
+  }
 
-    // machbase
-    if (body.machbase) {
-      if (body.machbase.scheme !== undefined) cfg.machbase.scheme = body.machbase.scheme;
-      if (body.machbase.host !== undefined) cfg.machbase.host = body.machbase.host;
-      if (body.machbase.port !== undefined) cfg.machbase.port = Number(body.machbase.port);
-      if (body.machbase.timeout_seconds !== undefined) cfg.machbase.timeout_seconds = Number(body.machbase.timeout_seconds);
-      if (body.machbase.user !== undefined) cfg.machbase.user = body.machbase.user;
-      if (body.machbase.password !== undefined) cfg.machbase.password = body.machbase.password;
+} else if (method === 'PUT') {
+  // PUT: 기존 config에서 받은 필드만 덮어쓰기
+  var existing = loadCurrentConfig();
+  if (!existing) {
+    reply(404, { ok: false, reason: 'config not found, POST to create first' });
+  } else {
+    var body = parseBody();
+    if (!body) {
+      reply(400, { ok: false, reason: 'request body is required' });
+    } else {
+      merge(existing, body);
+      fixNumbers(existing);
+      saveConfig(existing);
+      reply(200, { ok: true, data: { saved: BBOX_CONFIG } });
     }
-
-    // log
-    if (body.log) {
-      if (body.log.level !== undefined) cfg.log.level = body.log.level;
-      if (body.log.format !== undefined) cfg.log.format = body.log.format;
-      if (body.log.output !== undefined) cfg.log.output = body.log.output;
-    }
-
-    saveConfig(cfg);
-    reply(200, { ok: true, data: { saved: BBOX_CONFIG } });
   }
 
 } else {
