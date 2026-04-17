@@ -69,7 +69,12 @@ function reply(status, data) {
 }
 
 function parseBody() {
-  var raw = process.stdin.readLine();
+  var lines = [];
+  var line;
+  while ((line = process.stdin.readLine()) !== null && line !== '') {
+    lines.push(line);
+  }
+  var raw = lines.join('');
   if (!raw) return null;
   return JSON.parse(raw);
 }
