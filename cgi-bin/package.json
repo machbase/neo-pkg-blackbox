@@ -3,7 +3,8 @@
   "version": "0.0.1",
   "bin": {},
   "scripts": {
-    "setup": "./setup.js"
+    "setup": "./setup.js",
+    "uninstall": "./uninstall.js"
   },
   "dependencies": {}
 }

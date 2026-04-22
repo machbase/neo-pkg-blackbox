@@ -9,6 +9,8 @@ var tar = require('archive/tar');
 
 var ROOT = path.resolve(path.dirname(process.argv[1]));
 var BBOX_DIR = path.join(ROOT, 'bbox');
+var LAUNCHER = path.join(ROOT, 'blackbox-launcher.js');
+var SERVICE_NAME = 'neo-blackbox';
 var REPO = 'machbase/neo-pkg-bbox';
 
 function detectPlatform() {
@@ -130,11 +132,54 @@ download(url, tmpFile, function(err) {
   }
 
   // launcher.js 실행 권한 부여 (pkg copy 시 권한이 유지되지 않음)
-  var launcherPath = path.join(ROOT, 'blackbox-launcher.js');
-  if (fs.existsSync(launcherPath)) {
-    fs.chmod(launcherPath, 0o755);
-    console.println('chmod +x', launcherPath);
+  if (fs.existsSync(LAUNCHER)) {
+    fs.chmod(LAUNCHER, 0o755);
+    console.println('chmod +x', LAUNCHER);
   }
 
   console.println('done. bbox installed at', BBOX_DIR);
+
+  // 서비스 등록 → 시작 (CLI 풀 셋업)
+  installService(function(insErr) {
+    if (insErr) {
+      console.println('ERROR install:', insErr.message);
+      process.exit(1);
+    }
+    startService(function(startErr) {
+      if (startErr) {
+        console.println('ERROR start:', startErr.message);
+        process.exit(1);
+      }
+      console.println('all done. service', SERVICE_NAME, 'is running.');
+    });
+  });
 });
+
+function installService(callback) {
+  var service = require('service');
+  console.println('installing service:', SERVICE_NAME);
+  service.install({
+    name: SERVICE_NAME,
+    enable: false,
+    working_dir: BBOX_DIR,
+    executable: LAUNCHER,
+  }, function(err) {
+    if (err) callback(err);
+    else {
+      console.println('service installed.');
+      callback(null);
+    }
+  });
+}
+
+function startService(callback) {
+  var service = require('service');
+  console.println('starting service:', SERVICE_NAME);
+  service.start(SERVICE_NAME, function(err) {
+    if (err) callback(err);
+    else {
+      console.println('service started.');
+      callback(null);
+    }
+  });
+}
