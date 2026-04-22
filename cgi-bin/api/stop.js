@@ -3,7 +3,7 @@
 const process = require('process');
 const os = require('os');
 
-const SERVICE_NAME = 'neo-blackbox';
+const SERVICE_NAME = 'neo-pkg-blackbox';
 const IS_WIN = os.platform() === 'windows';
 const BINARY_NAME = IS_WIN ? 'neo-blackbox.exe' : 'neo-blackbox';
 

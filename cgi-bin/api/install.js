@@ -11,7 +11,7 @@ const ARGV1 = process.argv[1];
 const APP_DIR = ARGV1.slice(0, ARGV1.lastIndexOf('/cgi-bin/') + '/cgi-bin'.length);
 const BBOX_DIR = path.join(APP_DIR, 'bbox');
 const LAUNCHER = path.join(APP_DIR, 'blackbox-launcher.js');
-const SERVICE_NAME = 'neo-blackbox';
+const SERVICE_NAME = 'neo-pkg-blackbox';
 
 function reply(data) {
   const body = JSON.stringify(data);

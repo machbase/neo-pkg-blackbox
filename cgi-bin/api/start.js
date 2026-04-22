@@ -3,7 +3,7 @@
 const process = require('process');
 const service = require('service');
 
-const SERVICE_NAME = 'neo-blackbox';
+const SERVICE_NAME = 'neo-pkg-blackbox';
 
 function reply(data) {
   const body = JSON.stringify(data);
