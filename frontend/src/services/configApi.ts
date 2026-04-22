@@ -1,53 +1,36 @@
-import type { ApiConfigData, ApiConfigPostBody, ApiEnvelope } from "../types/configApi";
+import type { ApiConfigData, ApiConfigPostBody } from "../types/configApi";
+import { apiBaseUrl, parseJsonResponse } from "./apiClient";
 
 type ApiResult = {
     success: boolean;
     reason: string;
 };
 
-function apiBaseUrl(): string {
-    return __API_PREFIX__;
-}
+const ENDPOINT = "/servers/config";
 
-function parseEnvelope<T>(raw: unknown): ApiEnvelope<T> {
-    if (!raw || typeof raw !== "object") {
-        throw new Error("Invalid API response");
-    }
-    const envelope = raw as ApiEnvelope<T>;
-    if (typeof envelope.success !== "boolean") {
-        throw new Error("Invalid API response: missing success");
-    }
-    return envelope;
-}
-
-async function parseJsonResponse<T>(response: Response): Promise<ApiEnvelope<T>> {
-    const body: unknown = await response.json();
-    const envelope = parseEnvelope<T>(body);
-    if (!response.ok) {
-        throw new Error(envelope.reason || `HTTP ${response.status}`);
-    }
-    if (!envelope.success) {
-        throw new Error(envelope.reason || "Request failed");
-    }
-    return envelope;
-}
-
-export async function getConfig(): Promise<ApiConfigData> {
-    const response = await fetch(`${apiBaseUrl()}/api/config`, {
+// 첫 설치 시 config.json 이 없으면 백엔드는 404 + success:false 를 반환한다.
+// 이는 정상 흐름이므로 throw 하지 않고 null 을 돌려 caller 가 fallback 하게 한다.
+export async function getConfig(): Promise<ApiConfigData | null> {
+    const response = await fetch(`${apiBaseUrl()}${ENDPOINT}`, {
         method: "GET",
     });
+    if (response.status === 404) return null;
     const envelope = await parseJsonResponse<ApiConfigData>(response);
     return envelope.data;
 }
 
 export async function postConfig(payload: ApiConfigPostBody): Promise<ApiResult> {
-    const response = await fetch(`${apiBaseUrl()}/api/config`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
+    const url = `${apiBaseUrl()}${ENDPOINT}`;
+    const init: RequestInit = {
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-    });
+    };
+
+    let response = await fetch(url, { ...init, method: "PUT" });
+    if (response.status === 404) {
+        response = await fetch(url, { ...init, method: "POST" });
+    }
+
     const envelope = await parseJsonResponse<unknown>(response);
     return {
         success: envelope.success,

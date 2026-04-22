@@ -1,46 +1,54 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { MediaServerConfig } from '../types/server';
-
-const STORAGE_KEY = 'blackbox-servers';
-
-function loadFromStorage(): MediaServerConfig[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as MediaServerConfig[];
-  } catch { /* ignore */ }
-  return [];
-}
-
-function saveToStorage(configs: MediaServerConfig[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(configs));
-}
+import {
+  listServers,
+  createServer,
+  updateServer as apiUpdateServer,
+  deleteServer,
+} from '../services/serversApi';
 
 export function useServers() {
-  const [servers, setServers] = useState<MediaServerConfig[]>(loadFromStorage);
+  const [servers, setServers] = useState<MediaServerConfig[]>([]);
 
-  const addServer = useCallback((config: MediaServerConfig) => {
-    setServers((prev) => {
-      const next = [...prev, config];
-      saveToStorage(next);
-      return next;
-    });
+  const refresh = useCallback(async () => {
+    try {
+      const list = await listServers();
+      setServers(list);
+    } catch (err) {
+      console.error('Failed to load servers', err);
+    }
   }, []);
 
-  const updateServer = useCallback((alias: string, config: MediaServerConfig) => {
-    setServers((prev) => {
-      const next = prev.map((s) => (s.alias === alias ? config : s));
-      saveToStorage(next);
-      return next;
-    });
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const addServer = useCallback(async (config: MediaServerConfig) => {
+    try {
+      const created = await createServer(config);
+      setServers((prev) => [...prev, created]);
+    } catch (err) {
+      console.error('Failed to create server', err);
+    }
   }, []);
 
-  const removeServer = useCallback((alias: string) => {
-    setServers((prev) => {
-      const next = prev.filter((s) => s.alias !== alias);
-      saveToStorage(next);
-      return next;
-    });
+  const updateServer = useCallback(async (alias: string, config: MediaServerConfig) => {
+    try {
+      const updated = await apiUpdateServer(alias, config);
+      setServers((prev) => prev.map((s) => (s.alias === alias ? updated : s)));
+    } catch (err) {
+      console.error('Failed to update server', err);
+    }
   }, []);
 
-  return { servers, addServer, updateServer, removeServer };
+  const removeServer = useCallback(async (alias: string) => {
+    try {
+      await deleteServer(alias);
+      setServers((prev) => prev.filter((s) => s.alias !== alias));
+    } catch (err) {
+      console.error('Failed to delete server', err);
+    }
+  }, []);
+
+  return { servers, addServer, updateServer, removeServer, refresh };
 }

@@ -32,9 +32,12 @@ export default defineConfig({
         host: true,
         port: 5173,
         proxy: {
-            "/api": `http://192.168.0.87:8000`,
-            "/db": `http://192.168.0.87:8000`,
-            "/web": `http://192.168.0.87:8000`, // echart 등 정적 파일
+            "/public/neo-pkg-blackbox": "http://127.0.0.1:5654",
         },
+        // proxy: {
+        //     "/api": `http://192.168.0.87:8000`,
+        //     "/db": `http://192.168.0.87:8000`,
+        //     "/web": `http://192.168.0.87:8000`, // echart 등 정적 파일
+        // },
     },
 });

@@ -59,7 +59,7 @@ export function buildFallbackApiConfigData(): ApiConfigData {
       host: '127.0.0.1',
       port: 5654,
       timeout_seconds: 30,
-      token: '',
+      api_token: '',
     },
     ffmpeg: {
       binary: '../tools/ffmpeg',
@@ -104,7 +104,7 @@ export function buildFallbackApiConfigData(): ApiConfigData {
 
 export function fromApiToDraft(api: ApiConfigData): { draft: SettingsDraft; shadow: ApiConfigData } {
   const filename = splitFilename(api.log.file.filename);
-  const token = api.machbase.token || '';
+  const token = api.machbase.api_token || '';
 
   const draft: SettingsDraft = {
     general: {
@@ -170,7 +170,7 @@ export function toPostPayload(draft: SettingsDraft, shadow: ApiConfigData): ApiC
   payload.machbase.host = draft.general.machbase.host;
   payload.machbase.port = draft.general.machbase.port;
   payload.machbase.timeout_seconds = draft.general.machbase.timeoutSeconds;
-  payload.machbase.token = draft.general.machbase.useToken ? draft.general.machbase.apiToken : '';
+  payload.machbase.api_token = draft.general.machbase.useToken ? draft.general.machbase.apiToken : '';
 
   payload.ffmpeg.binary = draft.general.ffmpeg.binary;
   payload.ffmpeg.defaults.probe_binary = draft.general.ffmpeg.probeBinary;

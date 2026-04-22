@@ -31,9 +31,12 @@ export function useConfig() {
       try {
         const apiData = await getConfig();
         if (cancelled) return;
-        const mapped = fromApiToDraft(apiData);
-        setDraft(mapped.draft);
-        setShadow(mapped.shadow);
+        if (apiData) {
+          const mapped = fromApiToDraft(apiData);
+          setDraft(mapped.draft);
+          setShadow(mapped.shadow);
+        }
+        // apiData === null: 백엔드에 config 없음 → INITIAL fallback 유지 (토스트 안 띄움)
       } catch (error) {
         if (cancelled) return;
         notify(`Failed to load config: ${errorMessage(error, 'unknown error')}. Using fallback values.`, 'error');

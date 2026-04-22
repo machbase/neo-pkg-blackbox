@@ -24,7 +24,7 @@ export interface ApiConfigData {
     host: string;
     port: number;
     timeout_seconds: number;
-    token: string;
+    api_token: string;
   };
   ffmpeg: {
     binary: string;

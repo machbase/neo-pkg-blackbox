@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { MediaServerConfig } from '../../types/server';
+import { getBboxInfo } from '../../services/infoApi';
 import Icon from '../common/Icon';
 
 const ALIAS_REGEX = /^[a-zA-Z0-9가-힣ㄱ-ㅎㅏ-ㅣ\-_.]+$/;
@@ -23,12 +24,19 @@ export default function ServerModal({ isOpen, onClose, onSave, mode, initial, ex
   const [connStatus, setConnStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
 
   useEffect(() => {
-    if (isOpen) {
-      setAlias(initial?.alias ?? '');
-      setIp(initial?.ip ?? (mode === 'new' ? window.location.hostname : ''));
-      setPort(initial?.port ? String(initial.port) : (mode === 'new' ? '8000' : ''));
-      setError('');
-      setConnStatus('idle');
+    if (!isOpen) return;
+    setAlias(initial?.alias ?? '');
+    setIp(initial?.ip ?? (mode === 'new' ? window.location.hostname : ''));
+    setPort(initial?.port ? String(initial.port) : (mode === 'new' ? '8000' : ''));
+    setError('');
+    setConnStatus('idle');
+
+    if (mode === 'new' && !initial?.port) {
+      let cancelled = false;
+      getBboxInfo()
+        .then((info) => { if (!cancelled) setPort(String(info.port)); })
+        .catch(() => { /* keep 8000 fallback */ });
+      return () => { cancelled = true; };
     }
   }, [isOpen, initial, mode]);
 
