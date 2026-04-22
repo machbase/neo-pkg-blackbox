@@ -7,9 +7,11 @@ var fs = require('fs');
 var os = require('os');
 var tar = require('archive/tar');
 
-var ROOT = path.resolve(path.dirname(process.argv[1]));
-var BBOX_DIR = path.join(ROOT, 'bbox');
-var LAUNCHER = path.join(ROOT, 'blackbox-launcher.js');
+var ROOT = path.resolve(path.dirname(process.argv[1]));   // /work/.../scripts
+var PKG_DIR = path.dirname(ROOT);                          // /work/.../neo-pkg-blackbox
+var CGI_BIN = path.join(PKG_DIR, 'cgi-bin');
+var BBOX_DIR = path.join(CGI_BIN, 'bbox');
+var LAUNCHER = path.join(CGI_BIN, 'blackbox-launcher.js');
 var SERVICE_NAME = 'neo-blackbox';
 var REPO = 'machbase/neo-pkg-bbox';
 
@@ -105,7 +107,7 @@ var url = 'https://github.com/' + REPO + '/releases/latest/download/' + assetNam
 console.println('platform:', platform);
 console.println('downloading:', url);
 
-var tmpFile = path.join(ROOT, '.bbox-download.tar.gz');
+var tmpFile = path.join(CGI_BIN, '.bbox-download.tar.gz');
 download(url, tmpFile, function(err) {
   if (err) {
     console.println('ERROR:', err.message);

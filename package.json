@@ -2,10 +2,10 @@
   "name": "neo-pkg-blackbox",
   "version": "0.0.1",
   "scripts": {
-    "install": "./cgi-bin/install.js",
-    "uninstall": "./cgi-bin/uninstall.js",
-    "start": "./cgi-bin/start.js",
-    "stop": "./cgi-bin/stop.js"
+    "install": "./scripts/install.js",
+    "uninstall": "./scripts/uninstall.js",
+    "start": "./scripts/start.js",
+    "stop": "./scripts/stop.js"
   },
   "dependencies": {}
 }
