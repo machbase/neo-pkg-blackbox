@@ -4,29 +4,28 @@
 // 패키지 디렉토리 자체 제거는 패키지 매니저가 수행한다 (이 스크립트의 책임 아님).
 
 var process = require('process');
-var os = require('os');
 var service = require('service');
 
 var SERVICE_NAME = 'neo-pkg-blackbox';
-var IS_WIN = os.platform() === 'windows';
-var BINARY_NAME = IS_WIN ? 'neo-blackbox.exe' : 'neo-blackbox';
 
-// 1. 바이너리 강제 종료
-console.println('stopping binary:', BINARY_NAME);
-if (IS_WIN) {
-  process.exec('@taskkill', '/F', '/IM', BINARY_NAME);
-} else {
-  process.exec('@pkill', '-f', BINARY_NAME);
-}
-
-// 2. 서비스 등록 해제
-console.println('uninstalling service:', SERVICE_NAME);
-service.uninstall(SERVICE_NAME, function(err) {
-  if (err) {
-    // 등록 안 돼있어도 패키지 매니저는 정상 진행해야 함
-    console.println('WARN uninstall:', err.message);
+// 1. 서비스 중지 (레지스트리 상태까지 stopped 로 전이)
+console.println('stopping service:', SERVICE_NAME);
+service.stop(SERVICE_NAME, function(stopErr) {
+  if (stopErr) {
+    // 이미 중지돼있거나 미등록이어도 다음 단계 진행
+    console.println('WARN stop:', stopErr.message);
   } else {
-    console.println('service uninstalled.');
+    console.println('service stopped.');
   }
-  console.println('all done.');
+
+  // 2. 서비스 등록 해제
+  console.println('uninstalling service:', SERVICE_NAME);
+  service.uninstall(SERVICE_NAME, function(err) {
+    if (err) {
+      console.println('WARN uninstall:', err.message);
+    } else {
+      console.println('service uninstalled.');
+    }
+    console.println('all done.');
+  });
 });
