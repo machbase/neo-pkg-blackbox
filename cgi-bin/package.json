@@ -3,8 +3,10 @@
   "version": "0.0.1",
   "bin": {},
   "scripts": {
-    "setup": "./setup.js",
-    "uninstall": "./uninstall.js"
+    "install": "./install.js",
+    "uninstall": "./uninstall.js",
+    "start": "./start.js",
+    "stop": "./stop.js"
   },
   "dependencies": {}
 }
