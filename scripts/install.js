@@ -11,64 +11,9 @@ var ROOT = path.resolve(path.dirname(process.argv[1]));   // /work/.../scripts
 var PKG_DIR = path.dirname(ROOT);                          // /work/.../neo-pkg-blackbox
 var CGI_BIN = path.join(PKG_DIR, 'cgi-bin');
 var BBOX_DIR = path.join(CGI_BIN, 'bbox');
-var CONFIG_DIR = path.join(BBOX_DIR, 'config');
-var CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 var LAUNCHER = path.join(CGI_BIN, 'blackbox-launcher.js');
 var SERVICE_NAME = 'neo-pkg-blackbox';
 var REPO = 'machbase/neo-pkg-bbox';
-
-var DEFAULT_CONFIG = {
-  server: {
-    addr: '0.0.0.0:8000',
-    camera_dir: '../bin/cameras',
-    mvs_dir: '../ai/mvs',
-    data_dir: '../bin/data'
-  },
-  machbase: {
-    scheme: 'http',
-    host: '127.0.0.1',
-    port: 5654,
-    timeout_seconds: 30,
-    api_token: '',
-    user: 'sys',
-    password: 'manager'
-  },
-  mediamtx: {
-    binary: '../tools/mediamtx',
-    config_file: '../tools/mediamtx.yml',
-    host: '127.0.0.1',
-    port: 9997
-  },
-  ffmpeg: {
-    binary: '../tools/ffmpeg',
-    defaults: {
-      probe_binary: '../tools/ffprobe',
-      probe_args: [
-        { flag: 'v', value: 'error' },
-        { flag: 'select_streams', value: 'v:0' },
-        { flag: 'show_entries', value: 'packet=pts_time,duration_time' },
-        { flag: 'of', value: 'csv=p=0' }
-      ]
-    }
-  },
-  ai: {
-    binary: '../ai/blackbox-ai-manager',
-    config_file: '../ai/config.json'
-  },
-  log: {
-    dir: '../logs',
-    level: 'info',
-    format: 'json',
-    output: 'both',
-    file: {
-      filename: 'blackbox.log',
-      max_size: 100,
-      max_backups: 10,
-      max_age: 30,
-      compress: true
-    }
-  }
-};
 
 function detectPlatform() {
   var platform = os.platform();
@@ -195,9 +140,8 @@ download(url, tmpFile, function(err) {
   }
 
   console.println('done. bbox installed at', BBOX_DIR);
-
-  // bbox 기본 config 생성 (이미 있으면 유지) — 없으면 바이너리가 기동 실패함
-  ensureDefaultConfig();
+  // config 는 tarball 의 bbox/config/config.yaml 그대로 사용.
+  // 조회/수정은 bbox 네이티브 API (/api/config) 가 담당.
 
   // 서비스 등록 → 시작 (CLI 풀 셋업)
   installService(function(insErr) {
@@ -214,18 +158,6 @@ download(url, tmpFile, function(err) {
     });
   });
 });
-
-function ensureDefaultConfig() {
-  if (fs.existsSync(CONFIG_FILE)) {
-    console.println('config exists, keep as-is:', CONFIG_FILE);
-    return;
-  }
-  if (!fs.existsSync(CONFIG_DIR)) {
-    fs.mkdirSync(CONFIG_DIR, { recursive: true });
-  }
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(DEFAULT_CONFIG, null, 2), 'utf8');
-  console.println('created default config:', CONFIG_FILE);
-}
 
 function installService(callback) {
   var service = require('service');
