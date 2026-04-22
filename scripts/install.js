@@ -232,7 +232,7 @@ function installService(callback) {
   console.println('installing service:', SERVICE_NAME);
   service.install({
     name: SERVICE_NAME,
-    enable: false,
+    enable: true,
     working_dir: BBOX_DIR,
     executable: LAUNCHER,
   }, function(err) {
