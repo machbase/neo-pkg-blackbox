@@ -2,19 +2,13 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router';
 import { useApp } from '../context/AppContext';
 import { queryCameraEvents, loadCameras, type EventQueryParams, type EventQueryResult } from '../services/cameraApi';
+import { getServer } from '../services/serversApi';
 import type { CameraEvent, CameraItem, MediaServerConfig } from '../types/server';
 import Icon from '../components/common/Icon';
 import EventDetailModal from '../components/camera/EventDetailModal';
 
 const EVENT_TYPES = ['ALL', 'MATCH', 'TRIGGER', 'RESOLVE', 'ERROR'] as const;
 const PAGE_SIZE = 20;
-
-function getServerConfig(alias: string): MediaServerConfig | null {
-  try {
-    const servers = JSON.parse(localStorage.getItem('blackbox-servers') || '[]');
-    return servers.find((s: MediaServerConfig) => s.alias === alias) ?? null;
-  } catch { return null; }
-}
 
 function formatDate(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -44,6 +38,7 @@ export default function EventPage() {
   const { alias } = useParams<{ alias: string }>();
   const { notify } = useApp();
 
+  const [config, setConfig] = useState<MediaServerConfig | null>(null);
   const [events, setEvents] = useState<CameraEvent[]>([]);
   const [cameras, setCameras] = useState<CameraItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,9 +58,8 @@ export default function EventPage() {
   const filtersRef = useRef({ selectedCamera, eventType, eventName, startTime, endTime });
   filtersRef.current = { selectedCamera, eventType, eventName, startTime, endTime };
 
-  const fetchEvents = async (p = 1) => {
-    const config = alias ? getServerConfig(alias) : null;
-    if (!config) return;
+  const fetchEvents = async (p = 1, cfg: MediaServerConfig | null = config) => {
+    if (!cfg) return;
     setLoading(true);
     try {
       const f = filtersRef.current;
@@ -76,7 +70,7 @@ export default function EventPage() {
       if (f.startTime) params.start_time = String(BigInt(new Date(f.startTime).getTime()) * 1000000n);
       if (f.endTime) params.end_time = String(BigInt(new Date(f.endTime).getTime()) * 1000000n);
 
-      const result: EventQueryResult = await queryCameraEvents(params, config.ip, config.port);
+      const result: EventQueryResult = await queryCameraEvents(params, cfg.ip, cfg.port);
       setEvents(result.events);
       setTotalCount(result.total_count);
       setTotalPages(result.total_pages);
@@ -89,18 +83,23 @@ export default function EventPage() {
   };
 
   useEffect(() => {
-    const config = alias ? getServerConfig(alias) : null;
+    if (!alias) { setConfig(null); setLoading(false); return; }
+    let cancelled = false;
+    getServer(alias)
+      .then((s) => { if (!cancelled) setConfig(s); })
+      .catch(() => { if (!cancelled) { setConfig(null); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [alias]);
+
+  useEffect(() => {
     if (!config) return;
-    // Load cameras for filter dropdown
     loadCameras(config.ip, config.port).then(setCameras).catch(() => {});
-    // Initial event fetch
-    fetchEvents(1);
-  }, [alias]); // eslint-disable-line react-hooks/exhaustive-deps
+    fetchEvents(1, config);
+  }, [config]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = () => { setPage(1); fetchEvents(1); };
   const handleReset = () => { setStartTime(daysAgo(7)); setEndTime(formatDate(new Date())); setSelectedCamera(''); setEventType('ALL'); setEventName(''); setPage(1); };
   const handlePage = (p: number) => { setPage(p); fetchEvents(p); };
-  const config = alias ? getServerConfig(alias) : null;
 
   return (
     <div className="page"><div className="page-body-full">

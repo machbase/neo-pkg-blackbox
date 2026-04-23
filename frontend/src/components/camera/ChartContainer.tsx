@@ -7,9 +7,10 @@ declare const echarts: any;
 interface ChartContainerProps {
   data: TqlChartResponse;
   parentRef?: React.RefObject<HTMLDivElement | null>;
+  baseUrl?: string;
 }
 
-export default function ChartContainer({ data, parentRef }: ChartContainerProps) {
+export default function ChartContainer({ data, parentRef, baseUrl }: ChartContainerProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -20,7 +21,7 @@ export default function ChartContainer({ data, parentRef }: ChartContainerProps)
     const render = async () => {
       // 1. Load common scripts (echarts etc)
       const jsAssets = data.jsAssets ?? [];
-      await loadScriptsSequentially(jsAssets, []);
+      await loadScriptsSequentially(jsAssets, [], baseUrl);
 
       if (cancelled || !wrapRef.current) return;
 
@@ -50,7 +51,7 @@ export default function ChartContainer({ data, parentRef }: ChartContainerProps)
 
       // 4. Load code scripts (chart init + data fetch)
       const jsCodeAssets = data.jsCodeAssets ?? [];
-      await loadScriptsSequentially([], jsCodeAssets);
+      await loadScriptsSequentially([], jsCodeAssets, baseUrl);
     };
 
     render();
@@ -79,7 +80,7 @@ export default function ChartContainer({ data, parentRef }: ChartContainerProps)
 
   return (
     <>
-      {data?.cssAssets?.map((href, i) => <link key={i} rel="stylesheet" href={prefixUrl(href)} />)}
+      {data?.cssAssets?.map((href, i) => <link key={i} rel="stylesheet" href={prefixUrl(href, baseUrl)} />)}
       <div ref={wrapRef} />
     </>
   );

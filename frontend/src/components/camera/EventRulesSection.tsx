@@ -128,6 +128,7 @@ export default function EventRulesSection({ cameraId, config, readOnly = false }
         cameraId={cameraId}
         config={config}
         editRule={editingRule}
+        ruleCount={rules.length}
       />
     </article>
   );

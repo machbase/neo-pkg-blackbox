@@ -1,15 +1,16 @@
 const LOADED_COMMON_SCRIPTS = new Set<string>();
 
-export function prefixUrl(url: string): string {
-  if (__API_PREFIX__ && url.startsWith('/')) return `${__API_PREFIX__}${url}`;
+export function prefixUrl(url: string, baseUrl?: string): string {
+  const prefix = baseUrl ?? __API_PREFIX__;
+  if (prefix && url.startsWith('/')) return `${prefix}${url}`;
   return url;
 }
 
-function loadScript(url: string): Promise<void> {
+function loadScript(url: string, baseUrl?: string): Promise<void> {
   document.getElementById('tmp-script')?.remove();
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = prefixUrl(url);
+    script.src = prefixUrl(url, baseUrl);
     script.id = 'tmp-script';
     script.type = 'text/javascript';
     script.onload = () => resolve();
@@ -22,10 +23,10 @@ export function filterNewScripts(scripts: string[]): string[] {
   return scripts.filter((s) => !LOADED_COMMON_SCRIPTS.has(s));
 }
 
-export async function loadScriptsSequentially(jsAssets: string[], jsCodeAssets: string[]): Promise<void> {
+export async function loadScriptsSequentially(jsAssets: string[], jsCodeAssets: string[], baseUrl?: string): Promise<void> {
   const newAssets = filterNewScripts(jsAssets);
   for (const url of [...newAssets, ...jsCodeAssets]) {
-    await loadScript(url);
+    await loadScript(url, baseUrl);
     if (newAssets.includes(url)) LOADED_COMMON_SCRIPTS.add(url);
   }
 }

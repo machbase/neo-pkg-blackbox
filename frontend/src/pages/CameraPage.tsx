@@ -5,6 +5,7 @@ import {
   getCamera, createCamera as apiCreateCamera, updateCamera as apiUpdateCamera,
   deleteCamera, enableCamera, disableCamera, getTables, getDetectObjects, pingCamera, updateCameraDetectObjects,
 } from '../services/cameraApi';
+import { getServer } from '../services/serversApi';
 import type { CameraInfo, MediaServerConfig, CameraCreateRequest, CameraUpdateRequest } from '../types/server';
 import { useConfirm } from '../context/ConfirmContext';
 import Icon from '../components/common/Icon';
@@ -14,20 +15,13 @@ import EventRulesSection from '../components/camera/EventRulesSection';
 import CreateTableModal from '../components/camera/CreateTableModal';
 import CameraLivePreview from '../components/camera/CameraLivePreview';
 
-function getServerConfig(alias: string): MediaServerConfig | null {
-  try {
-    const servers = JSON.parse(localStorage.getItem('blackbox-servers') || '[]');
-    return servers.find((s: MediaServerConfig) => s.alias === alias) ?? null;
-  } catch { return null; }
-}
-
 export default function CameraPage() {
   const { alias, id } = useParams<{ alias: string; id: string }>();
   const navigate = useNavigate();
   const { notify, setActiveItem } = useApp();
   const confirm = useConfirm();
   const isNew = id === 'new';
-  const config = alias ? getServerConfig(alias) : null;
+  const [config, setConfig] = useState<MediaServerConfig | null>(null);
 
   const [camera, setCamera] = useState<CameraInfo | null>(null);
   const [loading, setLoading] = useState(!isNew);
@@ -55,8 +49,7 @@ export default function CameraPage() {
   const [pingResult, setPingResult] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
   const [pinging, setPinging] = useState(false);
 
-  const fetchCamera = async () => {
-    const cfg = alias ? getServerConfig(alias) : null;
+  const fetchCamera = async (cfg: MediaServerConfig | null = config) => {
     if (!cfg || !id || isNew) return;
     try {
       const data = await getCamera(id, cfg.ip, cfg.port);
@@ -85,11 +78,18 @@ export default function CameraPage() {
   };
 
   useEffect(() => {
-    if (!isNew) fetchCamera();
-    // fetch tables + detect objects
-    const cfg = alias ? getServerConfig(alias) : null;
-    if (!cfg) return;
-    Promise.all([getTables(cfg.ip, cfg.port), getDetectObjects(cfg.ip, cfg.port)])
+    if (!alias) { setConfig(null); setLoading(false); return; }
+    let cancelled = false;
+    getServer(alias)
+      .then((s) => { if (!cancelled) setConfig(s); })
+      .catch(() => { if (!cancelled) { setConfig(null); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [alias]);
+
+  useEffect(() => {
+    if (!config) return;
+    if (!isNew) fetchCamera(config);
+    Promise.all([getTables(config.ip, config.port), getDetectObjects(config.ip, config.port)])
       .then(([tables, detects]) => {
         setTableList(tables);
         setDetectList(detects);
@@ -97,7 +97,7 @@ export default function CameraPage() {
         if (isNew && tables.length > 0) setFormTable((prev) => prev || tables[0]);
       })
       .catch(() => { /* ignore */ });
-  }, [alias, id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [config, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePing = async () => {
     if (!config || !formRtsp) return;

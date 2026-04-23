@@ -33,11 +33,9 @@ export default defineConfig({
         port: 5173,
         proxy: {
             "/public/neo-pkg-blackbox": "http://127.0.0.1:5654",
+            "/db": "http://127.0.0.1:5654",
+            "/api": "http://127.0.0.1:5654",
+            "/web": "http://127.0.0.1:5654",
         },
-        // proxy: {
-        //     "/api": `http://192.168.0.87:8000`,
-        //     "/db": `http://192.168.0.87:8000`,
-        //     "/web": `http://192.168.0.87:8000`, // echart 등 정적 파일
-        // },
     },
 });

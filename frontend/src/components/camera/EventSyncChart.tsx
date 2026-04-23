@@ -129,7 +129,7 @@ export default function EventSyncChart({
     let sQuery = ${JSON.stringify(queryList)};
     let sCount = 0;
     function getData(aTql, aIdx) {
-        fetch("${__API_PREFIX__}/db/tql", {
+        fetch("${baseUrl}/db/tql", {
             method: "POST",
             headers: {
                 "Accept": "application/json, text/plain, */*",
@@ -163,7 +163,7 @@ CHART(
     chartJSCode(${chartJsCode})
 )`;
 
-        const { data, chartType } = await postTql('', tql);
+        const { data, chartType } = await postTql(baseUrl, tql);
         if (cancelled) return;
 
         if (isChartResponse(chartType)) {
@@ -249,7 +249,7 @@ CHART(
           <span style={{ fontSize: 11, color: '#ef4444' }}>{error}</span>
         </div>
       )}
-      {chartData && <ChartContainer data={chartData} parentRef={containerRef} />}
+      {chartData && <ChartContainer data={chartData} parentRef={containerRef} baseUrl={baseUrl} />}
     </div>
   );
 }

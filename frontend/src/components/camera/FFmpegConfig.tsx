@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { FFmpegOption } from '../../types/server';
+import Icon from '../common/Icon';
 
 const RTSP_TRANSPORT_OPTIONS = ['tcp', 'udp', 'udp_multicast', 'http'];
 const RTSP_FLAGS_OPTIONS = ['prefer_tcp', 'filter_src', 'listen', 'latm', 'rfc2190', 'skip_rtcp'];
@@ -100,8 +101,16 @@ export default function FFmpegConfig({ value, onChange, readOnly = false }: FFmp
         onClick={() => setCollapsed((v) => !v)}
       >
         <h3 className="card-title" style={{ marginBottom: 0 }}>FFmpeg Configuration</h3>
-        <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-on-surface-tertiary)' }}>
-          {collapsed ? '▶' : '▼'}
+        <span
+          style={{
+            display: 'inline-flex',
+            justifyContent: 'center',
+            color: 'var(--color-on-surface-tertiary)',
+            transition: 'transform 0.15s',
+            transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)',
+          }}
+        >
+          <Icon name="chevron_right" className="icon-sm" />
         </span>
       </div>
 
