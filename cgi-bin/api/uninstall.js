@@ -16,12 +16,16 @@ const method = (process.env.get('REQUEST_METHOD') || 'GET').toUpperCase();
 if (method !== 'POST') {
   reply({ ok: false, reason: 'method not allowed' });
 } else {
-  // 1. 먼저 서비스 중지 (레지스트리 상태 running 이면 uninstall 이 거부됨)
-  service.stop(SERVICE_NAME, (stopErr) => {
-    // 이미 중지돼있거나 미등록이어도 다음 단계 진행 — stopErr 는 경고로만 취급
+  // 1. bbox 프로세스 트리 강제 정리 (1차)
+  killBboxTree('initial');
 
-    // 2. 서비스 등록 해제
+  // 2. 서비스 컨트롤러 측 정리
+  service.stop(SERVICE_NAME, (stopErr) => {
+    // 3. 서비스 등록 해제 — 자동 재기동 영구 차단
     service.uninstall(SERVICE_NAME, (err) => {
+      // 4. cleanup — controller 가 사이에 재기동했으면 정리
+      killBboxTree('cleanup');
+
       if (err) {
         reply({
           ok: false,
@@ -33,4 +37,17 @@ if (method !== 'POST') {
       }
     });
   });
+}
+
+function killBboxTree(label) {
+  const os = require('os');
+  const IS_WIN = os.platform() === 'windows';
+  const pattern = '/cgi-bin/bbox/';
+
+  if (IS_WIN) {
+    const ps1 = "Get-Process | Where-Object { $_.Path -like '*\\cgi-bin\\bbox\\*' } | Stop-Process -Force -ErrorAction SilentlyContinue";
+    process.exec('@powershell.exe', '-NoProfile', '-Command', ps1);
+  } else {
+    process.exec('@pkill', '-9', '-f', pattern);
+  }
 }
