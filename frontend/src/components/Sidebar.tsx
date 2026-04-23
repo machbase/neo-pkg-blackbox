@@ -12,7 +12,7 @@ export function Sidebar() {
   const navigate = useNavigate();
   const { activeItem, setActiveItem } = useApp();
   const confirm = useConfirm();
-  const { servers, addServer, updateServer, removeServer } = useServers();
+  const { servers, addServer, updateServer, removeServer, refresh: refreshServers } = useServers();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ServerModalMode>('new');
@@ -82,6 +82,7 @@ export function Sidebar() {
           onServerSettings={handleServerSettings}
           onDeleteServer={handleDeleteServer}
           onAddServer={handleAddServer}
+          onRefreshServers={refreshServers}
         />
       </div>
 

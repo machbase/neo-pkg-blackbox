@@ -175,10 +175,11 @@ export async function queryCameraEvents(params: EventQueryParams, ip: string, po
 
 export async function getEventRules(cameraId: string, ip: string, port: number): Promise<EventRuleItem[]> {
   const base = buildBaseUrl(ip, port);
-  const result = await fetchJson<EventRuleItem[] | { rules?: EventRuleItem[] }>(
+  const result = await fetchJson<EventRuleItem[] | { event_rules?: EventRuleItem[]; rules?: EventRuleItem[] }>(
     `${base}/api/event_rule/${encodeURIComponent(cameraId)}`
   );
   if (Array.isArray(result)) return result;
+  if (result && Array.isArray(result.event_rules)) return result.event_rules;
   if (result && Array.isArray(result.rules)) return result.rules;
   return [];
 }

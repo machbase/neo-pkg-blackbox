@@ -13,6 +13,7 @@ interface ServerSectionProps {
   onServerSettings: (config: MediaServerConfig) => void;
   onDeleteServer: (config: MediaServerConfig) => void;
   onAddServer: () => void;
+  onRefreshServers: () => Promise<void> | void;
 }
 
 export default function ServerSection({
@@ -24,9 +25,14 @@ export default function ServerSection({
   onServerSettings,
   onDeleteServer,
   onAddServer,
+  onRefreshServers,
 }: ServerSectionProps) {
   const [collapsed, setCollapsed] = useState(false);
   const { cameraMap, healthMap, eventCountMap, errorMap, loadedMap, loading, refresh } = useCameras(servers);
+
+  const handleRefresh = async () => {
+    await Promise.all([Promise.resolve(onRefreshServers()), refresh()]);
+  };
 
   return (
     <>
@@ -54,7 +60,7 @@ export default function ServerSection({
           <button title="Add server" onClick={onAddServer}>
             <Icon name="add" className="icon-sm" />
           </button>
-          <button title="Refresh" onClick={refresh} disabled={loading}>
+          <button title="Refresh" onClick={handleRefresh} disabled={loading}>
             <Icon name="refresh" className="icon-sm" />
           </button>
         </span>

@@ -87,6 +87,10 @@ export default function SideApp() {
     send('openServerModal', { mode: 'edit', initial: config, existingAliases: servers.map((s) => s.alias) });
   };
 
+  const handleRefresh = async () => {
+    await Promise.all([refreshServers(), Promise.resolve(refresh())]);
+  };
+
   if (!ready) {
     return (
       <div className="side h-screen opacity-50">
@@ -140,7 +144,7 @@ export default function SideApp() {
             <button title="Add server" onClick={handleAddServer}>
               <Icon name="add" className="icon-sm" />
             </button>
-            <button title="Refresh" onClick={refresh} disabled={loading}>
+            <button title="Refresh" onClick={handleRefresh} disabled={loading}>
               <Icon name="refresh" className="icon-sm" />
             </button>
           </span>

@@ -7,11 +7,12 @@ export interface TqlChartResponse {
   theme?: string;
 }
 
-export async function postTql(baseUrl: string, tql: string): Promise<{ data: any; chartType: string | null }> {
+export async function postTql(baseUrl: string, tql: string, signal?: AbortSignal): Promise<{ data: any; chartType: string | null }> {
   const res = await fetch(`${baseUrl || __API_PREFIX__}/db/tql`, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain' },
     body: tql,
+    signal,
   });
   const chartType = res.headers.get('x-chart-type');
   const text = await res.text();
@@ -26,12 +27,8 @@ export async function postTql(baseUrl: string, tql: string): Promise<{ data: any
   return { data, chartType };
 }
 
-export function isChartResponse(chartType: string | null): boolean {
-  return chartType === 'echarts';
-}
-
 export function extractChartData(data: any): TqlChartResponse | null {
-  if (!data) return null;
+  if (!data || typeof data !== 'object') return null;
   if (!data.chartID && !data.jsAssets && !data.jsCodeAssets) return null;
   return data as TqlChartResponse;
 }

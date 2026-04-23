@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { postTql, isChartResponse, extractChartData, type TqlChartResponse } from '../../services/tqlApi';
+import { postTql, extractChartData, type TqlChartResponse } from '../../services/tqlApi';
 import ChartContainer from './ChartContainer';
 import type { CameraInfo, CameraEvent } from '../../types/server';
 
@@ -52,6 +52,7 @@ export default function EventSyncChart({
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     const load = async () => {
       setLoading(true);
@@ -163,28 +164,25 @@ CHART(
     chartJSCode(${chartJsCode})
 )`;
 
-        const { data, chartType } = await postTql(baseUrl, tql);
+        const { data } = await postTql(baseUrl, tql, controller.signal);
         if (cancelled) return;
 
-        if (isChartResponse(chartType)) {
-          const parsed = extractChartData(data);
-          if (parsed) {
-            setChartData(parsed);
-          } else {
-            setError('Invalid chart response');
-          }
+        const parsed = extractChartData(data);
+        if (parsed) {
+          setChartData(parsed);
         } else {
           setError('Server did not return chart data');
         }
-      } catch {
-        if (!cancelled) setError('Failed to load detection data');
+      } catch (err) {
+        if (cancelled || (err instanceof DOMException && err.name === 'AbortError')) return;
+        setError('Failed to load detection data');
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
 
     load();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [cameraId, eventTimestamp.getTime(), rangeStart.getTime(), rangeEnd.getTime(), cameraDetail, baseUrl]);
 
   // Find echarts instance after ChartContainer renders
