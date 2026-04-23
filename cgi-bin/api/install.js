@@ -28,7 +28,6 @@ if (method !== 'POST') {
 } else {
   service.install({
     name: SERVICE_NAME,
-    enable: true,
     working_dir: BBOX_DIR,
     executable: LAUNCHER,
   }, (err) => {
