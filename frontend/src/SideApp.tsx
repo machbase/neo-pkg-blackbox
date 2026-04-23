@@ -42,6 +42,9 @@ export default function SideApp() {
           pendingConfirmRef.current = null;
         }
       }
+      if (msg.type === 'cameraChanged') {
+        refresh();
+      }
     };
     ch.postMessage({ type: 'requestReady' });
     return () => ch.close();

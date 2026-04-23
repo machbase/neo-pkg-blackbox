@@ -15,6 +15,17 @@ import EventRulesSection from '../components/camera/EventRulesSection';
 import CreateTableModal from '../components/camera/CreateTableModal';
 import CameraLivePreview from '../components/camera/CameraLivePreview';
 
+// Must match CHANNEL_NAME in App.tsx / SideApp.tsx
+const SIDE_CHANNEL = 'app:neo-blackbox';
+
+function notifySideCameraChanged() {
+  try {
+    const ch = new BroadcastChannel(SIDE_CHANNEL);
+    ch.postMessage({ type: 'cameraChanged' });
+    ch.close();
+  } catch { /* BroadcastChannel unsupported */ }
+}
+
 export default function CameraPage() {
   const { alias, id } = useParams<{ alias: string; id: string }>();
   const navigate = useNavigate();
@@ -138,6 +149,7 @@ export default function CameraPage() {
       };
       const created = await apiCreateCamera(payload, config.ip, config.port);
       notify(`Camera "${formName}" created`, 'success');
+      notifySideCameraChanged();
       setActiveItem(`${alias}::${created.camera_id || formName}`);
       navigate(`/camera/${encodeURIComponent(alias!)}/${encodeURIComponent(created.camera_id || formName)}`);
     } catch (err) {
@@ -163,6 +175,7 @@ export default function CameraPage() {
       };
       await apiUpdateCamera(id, payload, config.ip, config.port);
       notify('Camera saved', 'success');
+      notifySideCameraChanged();
       setEditMode(false);
       await fetchCamera();
     } catch (err) {
@@ -179,6 +192,7 @@ export default function CameraPage() {
     try {
       await deleteCamera(id, config.ip, config.port);
       notify(`Camera "${id}" deleted`, 'success');
+      notifySideCameraChanged();
       setActiveItem(null);
       navigate('/');
     } catch (err) {
