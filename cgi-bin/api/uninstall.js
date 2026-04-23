@@ -16,11 +16,12 @@ const method = (process.env.get('REQUEST_METHOD') || 'GET').toUpperCase();
 if (method !== 'POST') {
   reply({ ok: false, reason: 'method not allowed' });
 } else {
-  // 1. 먼저 서비스 중지 (레지스트리 상태 running 이면 uninstall 이 거부됨)
-  service.stop(SERVICE_NAME, (stopErr) => {
-    // 이미 중지돼있거나 미등록이어도 다음 단계 진행 — stopErr 는 경고로만 취급
+  // 1. bbox 프로세스 트리 강제 정리 (mediamtx/ai-manager/ffmpeg 자식까지)
+  killBboxTree();
 
-    // 2. 서비스 등록 해제
+  // 2. 서비스 컨트롤러 측 정리
+  service.stop(SERVICE_NAME, (stopErr) => {
+    // 3. 서비스 등록 해제
     service.uninstall(SERVICE_NAME, (err) => {
       if (err) {
         reply({
@@ -33,4 +34,39 @@ if (method !== 'POST') {
       }
     });
   });
+}
+
+function killBboxTree() {
+  const fs = require('fs');
+  const path = require('path');
+  const os = require('os');
+  const IS_WIN = os.platform() === 'windows';
+
+  const procRoot = '/proc/process';
+  if (!fs.existsSync(procRoot)) return;
+
+  let found = null;
+  const entries = fs.readdirSync(procRoot);
+  for (const name of entries) {
+    const metaPath = path.join(procRoot, name, 'meta.json');
+    if (!fs.existsSync(metaPath)) continue;
+    try {
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      const exe = meta.exec_path || meta.command || '';
+      if (/[\/\\]neo-blackbox(\.exe)?$/.test(exe)) {
+        found = { pid: meta.pid, pgid: meta.pgid > 0 ? meta.pgid : meta.pid };
+        break;
+      }
+    } catch (e) { /* skip */ }
+  }
+
+  if (!found) return;
+
+  if (IS_WIN) {
+    process.exec('@taskkill', '/T', '/PID', String(found.pid));
+    process.exec('@taskkill', '/F', '/T', '/PID', String(found.pid));
+  } else {
+    process.exec('@kill', '-TERM', '-' + found.pgid);
+    process.exec('@kill', '-KILL', '-' + found.pgid);
+  }
 }
