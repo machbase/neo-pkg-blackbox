@@ -13,7 +13,7 @@ export default function SideApp() {
   const [ready, setReady] = useState(false);
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [sectionCollapsed, setSectionCollapsed] = useState(false);
-  const { servers, removeServer, refresh: refreshServers } = useServers();
+  const { servers, addServer, updateServer, removeServer, refresh: refreshServers } = useServers();
   const { cameraMap, healthMap, eventCountMap, errorMap, loadedMap, loading, refresh } = useCameras(servers);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const pendingConfirmRef = useRef<{ id: string; resolve: (v: boolean) => void } | null>(null);
@@ -26,9 +26,13 @@ export default function SideApp() {
       if (!msg || !msg.type) return;
       if (msg.type === 'ready') setReady(true);
       if (msg.type === 'serverModalResult') {
-        const { action } = msg.payload;
+        const { action, config, mode, initialAlias } = msg.payload;
         if (action === 'save') {
-          refreshServers();
+          if (mode === 'new') {
+            addServer(config);
+          } else if (mode === 'edit' && initialAlias) {
+            updateServer(initialAlias, config);
+          }
         }
       }
       if (msg.type === 'confirmResult') {
