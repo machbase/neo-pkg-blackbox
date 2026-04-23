@@ -11,7 +11,7 @@ var relBboxDir = BBOX_DIR.replace(/^\/work\//, '');
 var hostBboxDir = path.join(hostWorkDir, relBboxDir);
 
 var executable = path.join(hostBboxDir, 'bin', 'neo-blackbox');
-var configFile = path.join(hostBboxDir, 'config', 'config.json');
+var configFile = path.join(hostBboxDir, 'config', 'config.yaml');
 
 console.println('launching:', executable);
 console.println('config:', configFile);
