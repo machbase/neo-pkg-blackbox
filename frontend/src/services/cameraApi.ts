@@ -1,7 +1,7 @@
 import type {
   CameraItem, CameraHealthResponse, CameraInfo, CameraEvent,
   CameraStatusResponse, CameraCreateRequest, CameraUpdateRequest,
-  EventRuleItem, EventRuleCreateRequest,
+  EventRuleItem, EventRuleCreateRequest, EventRuleUpdateRequest,
 } from '../types/server';
 
 function buildBaseUrl(ip: string, port: number): string {
@@ -193,7 +193,7 @@ export async function createEventRule(data: EventRuleCreateRequest, ip: string, 
 }
 
 export async function updateEventRule(
-  cameraId: string, ruleId: string, data: Partial<EventRuleCreateRequest>, ip: string, port: number,
+  cameraId: string, ruleId: string, data: EventRuleUpdateRequest, ip: string, port: number,
 ): Promise<void> {
   const base = buildBaseUrl(ip, port);
   await fetchJson(`${base}/api/event_rule/${encodeURIComponent(cameraId)}/${encodeURIComponent(ruleId)}`, {

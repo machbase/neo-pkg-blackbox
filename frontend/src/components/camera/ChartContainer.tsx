@@ -25,31 +25,27 @@ export default function ChartContainer({ data, parentRef, baseUrl }: ChartContai
 
       if (cancelled || !wrapRef.current) return;
 
-      // 2. Create or reuse DOM element
+      // 2. Recreate DOM element (dispose any previous echarts instance on the old node
+      //    so the TQL init script below can init cleanly — echarts.init silently fails
+      //    when an instance already exists on the DOM).
       const chartId = data.chartID ?? '';
-      let dom = document.getElementById(chartId) as HTMLDivElement | null;
-
-      if (!dom) {
-        dom = document.createElement('div');
-        dom.id = chartId;
-        const w = parentRef?.current?.clientWidth ?? parseInt(data.style?.width || '600');
-        const h = parentRef?.current?.clientHeight ?? parseInt(data.style?.height || '300');
-        dom.style.width = `${w}px`;
-        dom.style.height = `${h}px`;
-        dom.style.backgroundColor = '#252525';
-        wrapRef.current.innerHTML = '';
-        wrapRef.current.appendChild(dom);
+      const oldDom = document.getElementById(chartId);
+      if (oldDom && typeof echarts !== 'undefined') {
+        echarts.getInstanceByDom(oldDom)?.dispose();
+        oldDom.remove();
       }
 
-      // 3. Init echarts + override theme
-      if (typeof echarts !== 'undefined') {
-        const existing = echarts.getInstanceByDom(dom);
-        if (existing) existing.dispose();
-        const instance = echarts.init(dom, data.theme || 'dark');
-        instance.setOption({ backgroundColor: '#252525' });
-      }
+      const dom = document.createElement('div');
+      dom.id = chartId;
+      const w = parentRef?.current?.clientWidth ?? parseInt(data.style?.width || '600');
+      const h = parentRef?.current?.clientHeight ?? parseInt(data.style?.height || '300');
+      dom.style.width = `${w}px`;
+      dom.style.height = `${h}px`;
+      dom.style.backgroundColor = '#252525';
+      wrapRef.current.innerHTML = '';
+      wrapRef.current.appendChild(dom);
 
-      // 4. Load code scripts (chart init + data fetch)
+      // 3. Load code scripts — TQL-generated jsCodeAssets handle echarts.init + setOption.
       const jsCodeAssets = data.jsCodeAssets ?? [];
       await loadScriptsSequentially([], jsCodeAssets, baseUrl);
     };

@@ -150,11 +150,13 @@ export default function EventRuleModal({
       } else {
         await createEventRule({
           camera_id: cameraId,
-          rule_id: ruleId.trim(),
-          name: name.trim(),
-          expression_text: expression.trim(),
-          record_mode: recordMode,
-          enabled: true,
+          rule: {
+            rule_id: ruleId.trim(),
+            name: name.trim(),
+            expression_text: expression.trim(),
+            record_mode: recordMode,
+            enabled: true,
+          },
         }, config.ip, config.port);
         notify(`Event rule '${name}' created successfully.`, 'success');
       }
