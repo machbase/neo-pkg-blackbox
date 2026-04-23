@@ -1,17 +1,17 @@
 import type { ApiConfigData, ApiConfigPostBody } from "../types/configApi";
-import { apiBaseUrl, parseJsonResponse } from "./apiClient";
+import { parseJsonResponse } from "./apiClient";
 
 type ApiResult = {
     success: boolean;
     reason: string;
 };
 
-const ENDPOINT = "/servers/config";
+const ENDPOINT = "/neo-pkg-blackbox/api/config";
 
 // 첫 설치 시 config.json 이 없으면 백엔드는 404 + success:false 를 반환한다.
 // 이는 정상 흐름이므로 throw 하지 않고 null 을 돌려 caller 가 fallback 하게 한다.
 export async function getConfig(): Promise<ApiConfigData | null> {
-    const response = await fetch(`${apiBaseUrl()}${ENDPOINT}`, {
+    const response = await fetch(ENDPOINT, {
         method: "GET",
     });
     if (response.status === 404) return null;
@@ -20,7 +20,7 @@ export async function getConfig(): Promise<ApiConfigData | null> {
 }
 
 export async function postConfig(payload: ApiConfigPostBody): Promise<ApiResult> {
-    const url = `${apiBaseUrl()}${ENDPOINT}`;
+    const url = ENDPOINT;
     const init: RequestInit = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

@@ -33,6 +33,10 @@ export default defineConfig({
         port: 5173,
         proxy: {
             "/public/neo-pkg-blackbox": "http://127.0.0.1:5654",
+            "/neo-pkg-blackbox": "http://127.0.0.1:5654",
+            "/db": "http://127.0.0.1:5654",
+            "/api": "http://127.0.0.1:5654",
+            "/web": "http://127.0.0.1:5654",
         },
         // proxy: {
         //     "/api": `http://192.168.0.87:8000`,

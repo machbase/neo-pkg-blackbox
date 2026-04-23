@@ -91,6 +91,7 @@ export interface EventRuleItem {
 
 export interface EventRuleCreateRequest {
   camera_id: string;
+  rule_id?: string;
   name: string;
   expression_text: string;
   record_mode: 'ALL_MATCHES' | 'EDGE_ONLY';

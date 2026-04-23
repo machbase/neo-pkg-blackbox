@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { getCamera } from '../../services/cameraApi';
+import { getServer } from '../../services/serversApi';
 import { getTimeRange } from '../../services/videoApi';
 import { useChunkPlayer } from '../../hooks/useChunkPlayer';
 import { useCameraGaps } from '../../hooks/useCameraGaps';
@@ -11,13 +12,6 @@ import {
 import type { CameraEvent, CameraInfo, MediaServerConfig } from '../../types/server';
 import Icon from '../common/Icon';
 import EventSyncChart from './EventSyncChart';
-
-function getServerConfig(alias: string): MediaServerConfig | null {
-  try {
-    const servers = JSON.parse(localStorage.getItem('blackbox-servers') || '[]');
-    return servers.find((s: MediaServerConfig) => s.alias === alias) ?? null;
-  } catch { return null; }
-}
 
 function parseUsedCounts(snapshot?: string): Record<string, number> {
   if (!snapshot) return {};
@@ -500,13 +494,22 @@ interface EventDetailModalProps {
 export default function EventDetailModal({ isOpen, onClose, event, alias }: EventDetailModalProps) {
   const [cameraDetail, setCameraDetail] = useState<CameraInfo | null>(null);
   const [isChartOpen, setIsChartOpen] = useState(false);
-  const config = getServerConfig(alias);
+  const [config, setConfig] = useState<MediaServerConfig | null>(null);
+
+  useEffect(() => {
+    if (!alias) { setConfig(null); return; }
+    let cancelled = false;
+    getServer(alias)
+      .then((s) => { if (!cancelled) setConfig(s); })
+      .catch(() => { if (!cancelled) setConfig(null); });
+    return () => { cancelled = true; };
+  }, [alias]);
 
   useEffect(() => {
     if (!isOpen || !event?.camera_id) { setCameraDetail(null); return; }
     if (!config) return;
     getCamera(event.camera_id, config.ip, config.port).then(setCameraDetail).catch(() => setCameraDetail(null));
-  }, [isOpen, event?.camera_id, alias]);
+  }, [isOpen, event?.camera_id, config]);
 
   useEffect(() => {
     if (!isOpen) setIsChartOpen(false);
