@@ -20,7 +20,20 @@ function readBboxPort() {
   } catch (e) { /* fall through */ }
   return 8000;
 }
-var DEFAULT_SERVER = { alias: 'localhost', ip: '127.0.0.1', port: readBboxPort() };
+// 접속 가능한 호스트는 HTTP_HOST 에서 추출. 클라이언트가 실제로
+// 도달한 주소이므로 bbox 가 같은 호스트의 다른 포트에 바인딩되어
+// 있을 때 바로 사용 가능. 없으면 127.0.0.1 로 fallback.
+function readAccessibleHost() {
+  var host = process.env.get('HTTP_HOST') || '';
+  if (!host) return '127.0.0.1';
+  if (host.charAt(0) === '[') {                // IPv6 literal: [::1]:port
+    var end = host.indexOf(']');
+    return end > 0 ? host.substring(1, end) : host;
+  }
+  var colon = host.indexOf(':');
+  return colon >= 0 ? host.substring(0, colon) : host;
+}
+var DEFAULT_SERVER = { alias: 'localhost', ip: readAccessibleHost(), port: readBboxPort() };
 
 function reply(status, data, reason) {
   var elapse = (Date.now() - _tick) + 'ms';
@@ -44,14 +57,21 @@ function loadServers() {
   return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
 }
 
-// GET 전용: 저장소가 비어 있으면 기본 로컬 서버를 끼워 반환
-function listForView() {
-  var servers = loadServers();
-  return servers.length === 0 ? [DEFAULT_SERVER] : servers;
+function saveServers(servers) {
+  var dir = path.dirname(DATA_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(DATA_FILE, JSON.stringify(servers, null, 2), 'utf8');
 }
 
-function saveServers(servers) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(servers, null, 2), 'utf8');
+// 저장소가 비어 있으면 기본 로컬 서버를 실제로 저장한 뒤 반환한다.
+// virtual fallback 이 아니므로 이어지는 PUT/DELETE 가 정상 동작.
+function loadOrSeed() {
+  var servers = loadServers();
+  if (servers.length === 0) {
+    servers = [{ alias: DEFAULT_SERVER.alias, ip: DEFAULT_SERVER.ip, port: DEFAULT_SERVER.port }];
+    try { saveServers(servers); } catch (e) { /* seed 실패해도 응답은 반환 */ }
+  }
+  return servers;
 }
 
 function parseBody() {
@@ -69,7 +89,7 @@ query.split('&').forEach(function(pair) {
 });
 
 if (method === 'GET') {
-  var servers = listForView();
+  var servers = loadOrSeed();
   var alias = params.alias;
   if (alias) {
     var found = null;
@@ -90,7 +110,7 @@ if (method === 'GET') {
   if (!body || !body.alias || !body.ip || !body.port) {
     reply(400, null, 'alias, ip, port are required');
   } else {
-    var servers = loadServers();
+    var servers = loadOrSeed();
     var exists = servers.some(function(s) { return s.alias === body.alias; });
     if (exists) {
       reply(409, null, 'alias already exists: ' + body.alias);
@@ -110,7 +130,7 @@ if (method === 'GET') {
   } else if (!body) {
     reply(400, null, 'request body is required');
   } else {
-    var servers = loadServers();
+    var servers = loadOrSeed();
     var idx = -1;
     for (var i = 0; i < servers.length; i++) {
       if (servers[i].alias === alias) { idx = i; break; }
@@ -131,7 +151,7 @@ if (method === 'GET') {
   if (!alias) {
     reply(400, null, 'query parameter alias is required');
   } else {
-    var servers = loadServers();
+    var servers = loadOrSeed();
     var filtered = servers.filter(function(s) { return s.alias !== alias; });
     if (filtered.length === servers.length) {
       reply(404, null, 'server not found: ' + alias);
