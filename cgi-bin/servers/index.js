@@ -57,14 +57,21 @@ function loadServers() {
   return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
 }
 
-// GET 전용: 저장소가 비어 있으면 기본 로컬 서버를 끼워 반환
-function listForView() {
-  var servers = loadServers();
-  return servers.length === 0 ? [DEFAULT_SERVER] : servers;
+function saveServers(servers) {
+  var dir = path.dirname(DATA_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(DATA_FILE, JSON.stringify(servers, null, 2), 'utf8');
 }
 
-function saveServers(servers) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(servers, null, 2), 'utf8');
+// 저장소가 비어 있으면 기본 로컬 서버를 실제로 저장한 뒤 반환한다.
+// virtual fallback 이 아니므로 이어지는 PUT/DELETE 가 정상 동작.
+function loadOrSeed() {
+  var servers = loadServers();
+  if (servers.length === 0) {
+    servers = [{ alias: DEFAULT_SERVER.alias, ip: DEFAULT_SERVER.ip, port: DEFAULT_SERVER.port }];
+    try { saveServers(servers); } catch (e) { /* seed 실패해도 응답은 반환 */ }
+  }
+  return servers;
 }
 
 function parseBody() {
@@ -82,7 +89,7 @@ query.split('&').forEach(function(pair) {
 });
 
 if (method === 'GET') {
-  var servers = listForView();
+  var servers = loadOrSeed();
   var alias = params.alias;
   if (alias) {
     var found = null;
@@ -103,7 +110,7 @@ if (method === 'GET') {
   if (!body || !body.alias || !body.ip || !body.port) {
     reply(400, null, 'alias, ip, port are required');
   } else {
-    var servers = loadServers();
+    var servers = loadOrSeed();
     var exists = servers.some(function(s) { return s.alias === body.alias; });
     if (exists) {
       reply(409, null, 'alias already exists: ' + body.alias);
@@ -123,7 +130,7 @@ if (method === 'GET') {
   } else if (!body) {
     reply(400, null, 'request body is required');
   } else {
-    var servers = loadServers();
+    var servers = loadOrSeed();
     var idx = -1;
     for (var i = 0; i < servers.length; i++) {
       if (servers[i].alias === alias) { idx = i; break; }
@@ -144,7 +151,7 @@ if (method === 'GET') {
   if (!alias) {
     reply(400, null, 'query parameter alias is required');
   } else {
-    var servers = loadServers();
+    var servers = loadOrSeed();
     var filtered = servers.filter(function(s) { return s.alias !== alias; });
     if (filtered.length === servers.length) {
       reply(404, null, 'server not found: ' + alias);
