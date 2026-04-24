@@ -29,7 +29,20 @@ function readBboxPort() {
   } catch (e) { /* fall through */ }
   return 8000;
 }
-var DEFAULT_SERVER = { alias: 'localhost', ip: '127.0.0.1', port: readBboxPort() };
+// 접속 가능한 호스트는 HTTP_HOST 에서 추출. 클라이언트가 실제로
+// 도달한 주소이므로 bbox 가 같은 호스트의 다른 포트에 바인딩되어
+// 있을 때 바로 사용 가능. 없으면 127.0.0.1 로 fallback.
+function readAccessibleHost() {
+  var host = process.env.get('HTTP_HOST') || '';
+  if (!host) return '127.0.0.1';
+  if (host.charAt(0) === '[') {                // IPv6 literal: [::1]:port
+    var end = host.indexOf(']');
+    return end > 0 ? host.substring(1, end) : host;
+  }
+  var colon = host.indexOf(':');
+  return colon >= 0 ? host.substring(0, colon) : host;
+}
+var DEFAULT_SERVER = { alias: 'localhost', ip: readAccessibleHost(), port: readBboxPort() };
 
 function reply(status, data, reason) {
   var elapse = (Date.now() - _tick) + 'ms';
