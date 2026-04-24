@@ -15,7 +15,21 @@ var fs = require('fs');
 
 var ROOT = path.resolve(path.dirname(process.argv[1]));            // cgi-bin/
 var DATA_FILE = path.join(ROOT, 'servers', 'servers.json');        // cgi-bin/servers/servers.json
+var CONFIG_FILE = path.join(ROOT, 'bbox', 'config', 'config.yaml');
 var _tick = Date.now();
+
+// 설치 직후 서버 목록이 비어 있으면 프론트 UX가 망가지므로,
+// 로컬 bbox 를 기본 항목으로 돌려준다. (persist X — 실제 등록 시 자동 소거)
+// 포트는 bbox config.yaml 의 server.addr 에서 읽어 info.js 와 동기화한다.
+function readBboxPort() {
+  try {
+    var txt = fs.readFileSync(CONFIG_FILE, 'utf8');
+    var m = txt.match(/addr\s*:\s*['"]?.*?:(\d+)/);
+    if (m) return Number(m[1]);
+  } catch (e) { /* fall through */ }
+  return 8000;
+}
+var DEFAULT_SERVER = { alias: 'localhost', ip: '127.0.0.1', port: readBboxPort() };
 
 function reply(status, data, reason) {
   var elapse = (Date.now() - _tick) + 'ms';
@@ -39,6 +53,12 @@ function loadServers() {
   } catch (e) {
     return [];
   }
+}
+
+// GET 전용: 저장소가 비어 있으면 기본 로컬 서버를 끼워 반환
+function listForView() {
+  var servers = loadServers();
+  return servers.length === 0 ? [DEFAULT_SERVER] : servers;
 }
 
 function saveServers(servers) {
@@ -68,7 +88,7 @@ query.split('&').forEach(function(pair) {
 });
 
 if (method === 'GET') {
-  var servers = loadServers();
+  var servers = listForView();
   var alias = params.alias;
   if (alias) {
     var found = null;
