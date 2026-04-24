@@ -6,6 +6,7 @@ var http = require('http');
 var fs = require('fs');
 var os = require('os');
 var tar = require('archive/tar');
+var zip = require('archive/zip');
 
 var ROOT = path.resolve(path.dirname(process.argv[1]));   // /work/.../scripts
 var PKG_DIR = path.dirname(ROOT);                          // /work/.../neo-pkg-blackbox
@@ -14,6 +15,9 @@ var BBOX_DIR = path.join(CGI_BIN, 'bbox');
 var LAUNCHER = path.join(CGI_BIN, 'blackbox-launcher.js');
 var SERVICE_NAME = 'neo-pkg-blackbox';
 var REPO = 'machbase/neo-pkg-bbox';
+var IS_WIN = os.platform() === 'windows';
+var BIN_NAME = IS_WIN ? 'neo-blackbox.exe' : 'neo-blackbox';
+var ARCHIVE_EXT = IS_WIN ? '.zip' : '.tar.gz';
 
 function detectPlatform() {
   var platform = os.platform();
@@ -29,6 +33,53 @@ function detectPlatform() {
   else archPart = 'amd64';
 
   return osPart + '-' + archPart;
+}
+
+// 설치 직전 좀비 bbox 프로세스 정리. JSH 재시작으로 tracker 초기화된
+// orphan 은 OS 레벨 kill 로 fallback, 그 외엔 /proc/process 로 PID 추적.
+function preemptiveKill() {
+  try {
+    if (IS_WIN) {
+      process.exec('@taskkill', '/F', '/IM', BIN_NAME);
+    } else {
+      process.exec('@pkill', '-9', '-x', 'neo-blackbox');
+    }
+  } catch (e) {}
+
+  var procRoot = '/proc/process';
+  if (!fs.existsSync(procRoot)) return;
+
+  var re = /[\/\\]neo-blackbox(\.exe)?(\s|$|"|')/;
+  var found = null;
+  var entries = fs.readdirSync(procRoot);
+  for (var i = 0; i < entries.length; i++) {
+    var metaPath = path.join(procRoot, entries[i], 'meta.json');
+    if (!fs.existsSync(metaPath)) continue;
+    try {
+      var meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      var exe = meta.exec_path || meta.command || '';
+      var args = meta.args || [];
+      var match = re.test(exe);
+      for (var j = 0; !match && j < args.length; j++) {
+        match = re.test(String(args[j]));
+      }
+      if (match) {
+        found = { pid: meta.pid, pgid: meta.pgid > 0 ? meta.pgid : meta.pid };
+        break;
+      }
+    } catch (e) {}
+  }
+
+  if (!found) return;
+  console.println('preemptive kill: pid=' + found.pid + ' pgid=' + found.pgid);
+
+  if (IS_WIN) {
+    try { process.exec('@taskkill', '/T', '/PID', String(found.pid)); } catch (e) {}
+    try { process.exec('@taskkill', '/F', '/T', '/PID', String(found.pid)); } catch (e) {}
+  } else {
+    try { process.exec('@kill', '-TERM', '-' + found.pgid); } catch (e) {}
+    try { process.exec('@kill', '-KILL', '-' + found.pgid); } catch (e) {}
+  }
 }
 
 function download(url, destPath, callback) {
@@ -67,12 +118,7 @@ function download(url, destPath, callback) {
   fetch(url, MAX_REDIRECTS);
 }
 
-function extractTarGz(tarPath, destDir) {
-  var zlib = require('zlib');
-  var compressed = fs.readFileSync(tarPath, { encoding: 'buffer' });
-  var decompressed = zlib.gunzipSync(compressed);
-  var entries = tar.untarSync(decompressed);
-
+function writeEntries(entries, destDir) {
   fs.mkdirSync(destDir, { recursive: true });
 
   for (var i = 0; i < entries.length; i++) {
@@ -97,17 +143,30 @@ function extractTarGz(tarPath, destDir) {
   }
 }
 
+function extract(archivePath, destDir) {
+  if (IS_WIN) {
+    var buf = fs.readFileSync(archivePath, { encoding: 'buffer' });
+    writeEntries(zip.unzipSync(buf), destDir);
+  } else {
+    var zlib = require('zlib');
+    var compressed = fs.readFileSync(archivePath, { encoding: 'buffer' });
+    writeEntries(tar.untarSync(zlib.gunzipSync(compressed)), destDir);
+  }
+}
+
 // ── main ──
 
 var platform = detectPlatform();
-var assetName = 'neo-blackbox-' + platform + '.tar.gz';
+var assetName = 'neo-blackbox-' + platform + ARCHIVE_EXT;
 // GitHub /releases/latest/download/ 는 최신 릴리스 asset으로 자동 리다이렉트 (API rate limit 없음)
 var url = 'https://github.com/' + REPO + '/releases/latest/download/' + assetName;
 
 console.println('platform:', platform);
 console.println('downloading:', url);
 
-var tmpFile = path.join(CGI_BIN, '.bbox-download.tar.gz');
+preemptiveKill();
+
+var tmpFile = path.join(CGI_BIN, '.bbox-download' + ARCHIVE_EXT);
 download(url, tmpFile, function(err) {
   if (err) {
     console.println('ERROR:', err.message);
@@ -116,12 +175,20 @@ download(url, tmpFile, function(err) {
 
   console.println('extracting to:', BBOX_DIR);
   try {
-    extractTarGz(tmpFile, BBOX_DIR);
+    extract(tmpFile, BBOX_DIR);
     fs.unlinkSync(tmpFile);
   } catch (exErr) {
     console.println('ERROR:', exErr.message);
     process.exit(1);
   }
+
+  // 바이너리 존재 확인 (설치 실패 조기 감지)
+  var binPath = path.join(BBOX_DIR, 'bin', BIN_NAME);
+  if (!fs.existsSync(binPath)) {
+    console.println('ERROR: binary missing:', binPath);
+    process.exit(1);
+  }
+  console.println('verified binary:', binPath);
 
   // macOS quarantine 속성 제거 (인터넷에서 받은 파일 실행 차단 방지)
   if (os.platform() === 'darwin') {

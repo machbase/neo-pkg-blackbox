@@ -6,11 +6,15 @@ const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const tar = require('archive/tar');
+const zip = require('archive/zip');
 
 const ROOT = path.resolve(path.dirname(process.argv[1]));
 const CGI_BIN = path.resolve(ROOT, '..');
 const BBOX_DIR = path.join(CGI_BIN, 'bbox');
 const REPO = 'machbase/neo-pkg-bbox';
+const IS_WIN = os.platform() === 'windows';
+const BIN_NAME = IS_WIN ? 'neo-blackbox.exe' : 'neo-blackbox';
+const ARCHIVE_EXT = IS_WIN ? '.zip' : '.tar.gz';
 
 const logs = [];
 function log() {
@@ -81,12 +85,7 @@ function download(url, destPath, callback) {
   fetch(url, MAX_REDIRECTS);
 }
 
-function extractTarGz(tarPath, destDir) {
-  const zlib = require('zlib');
-  const compressed = fs.readFileSync(tarPath, { encoding: 'buffer' });
-  const decompressed = zlib.gunzipSync(compressed);
-  const entries = tar.untarSync(decompressed);
-
+function writeEntries(entries, destDir) {
   fs.mkdirSync(destDir, { recursive: true });
 
   for (const entry of entries) {
@@ -110,17 +109,28 @@ function extractTarGz(tarPath, destDir) {
   }
 }
 
+function extract(archivePath, destDir) {
+  if (IS_WIN) {
+    const buf = fs.readFileSync(archivePath, { encoding: 'buffer' });
+    writeEntries(zip.unzipSync(buf), destDir);
+  } else {
+    const zlib = require('zlib');
+    const compressed = fs.readFileSync(archivePath, { encoding: 'buffer' });
+    writeEntries(tar.untarSync(zlib.gunzipSync(compressed)), destDir);
+  }
+}
+
 // ── main ──
 
 const platform = detectPlatform();
-const assetName = `neo-blackbox-${platform}.tar.gz`;
+const assetName = `neo-blackbox-${platform}${ARCHIVE_EXT}`;
 // GitHub /releases/latest/download/ 는 최신 릴리스 asset으로 자동 리다이렉트 (API rate limit 없음)
 const url = `https://github.com/${REPO}/releases/latest/download/${assetName}`;
 
 log('platform:', platform);
 log('downloading:', url);
 
-const tmpFile = path.join(CGI_BIN, '.bbox-download.tar.gz');
+const tmpFile = path.join(CGI_BIN, '.bbox-download' + ARCHIVE_EXT);
 download(url, tmpFile, (err) => {
   if (err) {
     reply({ ok: false, reason: err.message || String(err), log: logs });
@@ -129,12 +139,20 @@ download(url, tmpFile, (err) => {
 
   log('extracting to:', BBOX_DIR);
   try {
-    extractTarGz(tmpFile, BBOX_DIR);
+    extract(tmpFile, BBOX_DIR);
     fs.unlinkSync(tmpFile);
   } catch (exErr) {
     reply({ ok: false, reason: exErr.message || String(exErr), log: logs });
     return;
   }
+
+  // 바이너리 존재 확인 (설치 실패 조기 감지)
+  const binPath = path.join(BBOX_DIR, 'bin', BIN_NAME);
+  if (!fs.existsSync(binPath)) {
+    reply({ ok: false, reason: 'binary missing: ' + binPath, log: logs });
+    return;
+  }
+  log('verified binary:', binPath);
 
   // macOS quarantine 속성 제거 (인터넷에서 받은 파일 실행 차단 방지)
   if (os.platform() === 'darwin') {
