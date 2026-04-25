@@ -1,6 +1,6 @@
 ---
 title: 문제 해결
-weight: 50
+weight: 60
 ---
 
 # 문제 해결

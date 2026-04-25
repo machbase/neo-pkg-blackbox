@@ -22,6 +22,7 @@ Machbase Neo 좌측 사이드 패널에는 사용 가능한 패키지 목록이 
 - Settings 화면에서 공통 설정 저장
 - Blackbox Server 등록과 연결 확인
 - Camera 추가와 수정
+- Neo 대시보드에서 Video 패널 생성과 사용
 - Event 화면에서 검색과 확인
 - 운영 중 자주 보는 항목과 점검 방법
 
@@ -33,7 +34,8 @@ Machbase Neo 좌측 사이드 패널에는 사용 가능한 패키지 목록이 
 4. 필요하면 좌측 사이드바에서 **Blackbox Server**를 추가로 등록합니다.
 5. 서버 아래에 Camera를 추가합니다.
 6. 필요하면 Detection, FFmpeg, Event Rule을 조정합니다.
-7. Event 화면에서 발생 이력을 조회합니다.
+7. 필요하면 Neo 대시보드에서 `Video` 패널을 추가해 카메라 영상을 조회합니다.
+8. Event 화면에서 발생 이력을 조회합니다.
 
 ## 화면 구성
 
@@ -48,6 +50,7 @@ Machbase Neo 좌측 사이드 패널에는 사용 가능한 패키지 목록이 
 
 - [Settings와 서버 등록](./settings-and-servers.kr.md)
 - [카메라 관리](./camera-management.kr.md)
+- [대시보드 Video 패널 사용](./dashboard-video-panel.kr.md)
 - [이벤트 조회](./event-monitoring.kr.md)
 - [문제 해결](./troubleshooting.kr.md)
 

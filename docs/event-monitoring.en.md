@@ -1,6 +1,6 @@
 ---
 title: Event Monitoring
-weight: 40
+weight: 50
 ---
 
 # Event Monitoring
@@ -71,6 +71,6 @@ There you can review:
 
 ## Navigation
 
-- [Previous: Camera Management](./camera-management.en.md)
+- [Previous: Using Dashboard Video Panels](./dashboard-video-panel.en.md)
 - [Back to Index](./index.en.md)
 - [Next: Troubleshooting](./troubleshooting.en.md)

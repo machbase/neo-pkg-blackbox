@@ -71,7 +71,7 @@ Examples:
   - Generates an event when at least one person is detected
 - `car >= 2`
   - Generates an event when two or more cars are detected
-- `person > 0 && car > 0`
+- `person > 0 AND car > 0`
   - Generates an event when a person and a car are detected together
 
 Names such as `person` and `car` should be objects already registered in Detection.  
@@ -120,4 +120,4 @@ Deleting a camera cannot be undone. For a camera in operation, it is safer to di
 
 - [Previous: Settings and Server Registration](./settings-and-servers.en.md)
 - [Back to Index](./index.en.md)
-- [Next: Event Monitoring](./event-monitoring.en.md)
+- [Next: Using Dashboard Video Panels](./dashboard-video-panel.en.md)

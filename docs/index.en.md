@@ -22,6 +22,7 @@ Installation may take a short time, so wait until it finishes.
 - Saving common settings in the Settings screen
 - Registering a Blackbox Server and testing the connection
 - Adding and editing cameras
+- Creating and using Video panels in Neo dashboards
 - Searching and reviewing events in the Event screen
 - Common operational checks and troubleshooting points
 
@@ -33,7 +34,8 @@ Installation may take a short time, so wait until it finishes.
 4. Add more **Blackbox Server** entries in the left sidebar if needed.
 5. Add cameras under each server.
 6. Adjust Detection, FFmpeg, and Event Rules if needed.
-7. Review event history in the Event screen.
+7. If needed, add a `Video` panel in a Neo dashboard and review camera video there.
+8. Review event history in the Event screen.
 
 ## Screen Layout
 
@@ -48,6 +50,7 @@ Installation may take a short time, so wait until it finishes.
 
 - [Settings and Server Registration](./settings-and-servers.en.md)
 - [Camera Management](./camera-management.en.md)
+- [Using Dashboard Video Panels](./dashboard-video-panel.en.md)
 - [Event Monitoring](./event-monitoring.en.md)
 - [Troubleshooting](./troubleshooting.en.md)
 
