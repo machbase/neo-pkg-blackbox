@@ -61,7 +61,8 @@ In `Dependent option`, you select chart panels that should receive synchronized 
 - Only chart panels in the current dashboard can be selected.
 - Supported targets are `Line`, `Bar`, and `Scatter`.
 - The practical rule is that the chart must support a time-based X axis.
-- When a chart panel is selected, a vertical dashed line is drawn on that chart at the current video time.
+- When a chart panel is selected, a vertical dashed line is drawn on that chart at the current video time while reviewing recorded video.
+- This vertical dashed line is not shown in Live mode.
 - `Time sync color` controls the color of that vertical line.
 
 ### Child dashboard
@@ -107,7 +108,7 @@ Segments with no video data in the selected time range are shown in red on the p
 
 `Time Range` cannot be used while the panel is in Live mode.
 
-![Bottom controls and timeline screen](./images/blackbox-dashboard-video-controls.png)
+The image below shows an example where the current video time is drawn as a vertical dashed line on the selected chart during recorded playback.
 
 ![Chart synchronization marker screen](./images/blackbox-dashboard-video-sync.png)
 
