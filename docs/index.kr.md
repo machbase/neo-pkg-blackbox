@@ -14,9 +14,7 @@ Machbase Neo 좌측 사이드 패널에는 사용 가능한 패키지 목록이 
 
 설치에는 약간의 시간이 걸릴 수 있으므로, 완료될 때까지 잠시 기다립니다.
 
-> 스크린샷 위치: `package-install.png`
->
-> 권장 장면: Neo 좌측 사이드 패널의 패키지 목록과 선택한 패키지의 Install 버튼이 같이 보이는 화면
+![패키지 설치 화면](./images/package-install.png)
 
 ## 이 문서에서 다루는 내용
 
@@ -31,10 +29,11 @@ Machbase Neo 좌측 사이드 패널에는 사용 가능한 패키지 목록이 
 
 1. Neo에서 Blackbox 패키지를 설치합니다.
 2. Settings에서 공통 경로와 연동 정보를 확인합니다.
-3. 좌측 사이드바에서 **Blackbox Server**를 등록합니다.
-4. 서버 아래에 Camera를 추가합니다.
-5. 필요하면 Detection, FFmpeg, Event Rule을 조정합니다.
-6. Event 화면에서 발생 이력을 조회합니다.
+3. 최초 설치 시 자동 등록된 localhost 서버가 있으면 `127.0.0.1` 대신 외부 접속 가능한 IP로 바꿉니다.
+4. 필요하면 좌측 사이드바에서 **Blackbox Server**를 추가로 등록합니다.
+5. 서버 아래에 Camera를 추가합니다.
+6. 필요하면 Detection, FFmpeg, Event Rule을 조정합니다.
+7. Event 화면에서 발생 이력을 조회합니다.
 
 ## 화면 구성
 
@@ -43,9 +42,7 @@ Machbase Neo 좌측 사이드 패널에는 사용 가능한 패키지 목록이 
 - Camera 화면: 기본 정보, RTSP 연결, Detection, FFmpeg, Event Rules, Live Preview
 - Event 화면: 기간/카메라/타입 조건 검색과 상세 보기
 
-> 스크린샷 위치: `blackbox-sidebar.png`
->
-> 권장 장면: 좌측에 서버와 카메라 목록, 우측에 메인 화면이 함께 보이는 기본 화면
+![Blackbox 메인 화면](./images/blackbox-sidebar.png)
 
 ## 문서 목록
 
