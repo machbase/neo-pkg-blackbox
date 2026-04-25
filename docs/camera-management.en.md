@@ -44,6 +44,8 @@ In the Detection section, you can choose which objects to detect.
 - `Save detection results`
   - Whether to store detection results
 
+The object names used in Event Rules are based on this `Detect Objects` list.
+
 If you do not use object detection, this section can be left empty.
 
 ## FFmpeg Settings
@@ -60,10 +62,20 @@ In the existing Camera edit screen, you can configure the Event Rule section.
 
 This section defines rules that create an event when certain conditions are met based on detection results.
 
+In rule expressions, it is best to use only the object names registered in the current camera's `Detect Objects`.  
+In the Event Rule editor, this list appears as `Idents`, and you can click an item to insert it directly into the expression.
+
 Examples:
 
-- When people are detected above a certain count
-- When a specific combination of objects is detected together
+- `person > 0`
+  - Generates an event when at least one person is detected
+- `car >= 2`
+  - Generates an event when two or more cars are detected
+- `person > 0 && car > 0`
+  - Generates an event when a person and a car are detected together
+
+Names such as `person` and `car` should be objects already registered in Detection.  
+It is safer to configure `Detect Objects` first and then add Event Rules.
 
 Instead of starting with complex rules immediately, it is more stable to confirm that Detection itself works first and then add rules.
 

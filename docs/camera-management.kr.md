@@ -44,6 +44,8 @@ Detection 영역에서는 감지할 객체 종류를 선택할 수 있습니다.
 - `Save detection results`
   - 감지 결과 저장 여부
 
+Event Rule에서 사용할 객체 이름은 이 `Detect Objects` 목록을 기준으로 합니다.
+
 객체 감지를 쓰지 않는 경우에는 비워 둘 수 있습니다.
 
 ## FFmpeg 설정
@@ -60,10 +62,20 @@ Camera별로 FFmpeg 설정을 따로 조정할 수 있습니다.
 
 이 영역은 감지 결과를 바탕으로 특정 조건이 만족될 때 Event를 만들기 위한 규칙입니다.
 
+규칙 식에는 현재 Camera의 `Detect Objects`에 등록된 객체 이름만 사용하는 것이 좋습니다.  
+Event Rule 편집 화면에서는 이 목록이 `Idents`로 표시되며, 항목을 클릭해 식에 바로 넣을 수 있습니다.
+
 예:
 
-- 사람이 일정 수 이상 감지될 때
-- 특정 객체 조합이 함께 감지될 때
+- `person > 0`
+  - 사람이 1명 이상 감지되면 Event 발생
+- `car >= 2`
+  - 차량이 2대 이상 감지되면 Event 발생
+- `person > 0 && car > 0`
+  - 사람과 차량이 함께 감지될 때 Event 발생
+
+`person`, `car` 같은 이름은 Detection에 등록된 객체여야 합니다.  
+먼저 `Detect Objects`를 설정한 뒤 Event Rule을 추가하는 순서로 작업하는 것이 안전합니다.
 
 운영 초기에 바로 복잡한 규칙을 넣기보다는, 먼저 Detection만 정상 동작하는지 확인한 뒤 Rule을 추가하는 편이 안정적입니다.
 
