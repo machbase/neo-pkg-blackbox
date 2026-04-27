@@ -8,6 +8,8 @@ neo-pkg-blackbox helps you connect video sources, manage cameras, and review det
 
 The package brings together common system settings, Blackbox server registration, camera configuration, and event monitoring so operators can manage the full workflow from one place. Instead of handling separate tools for setup and day-to-day checks, you can register servers, add cameras, tune detection-related options, and inspect event history directly in the browser.
 
+Manual: [User Manual](./docs/index.en.md)
+
 ## Who is it for?
 
 - **Operators** - Register servers and cameras, check event history, and review whether the system is behaving as expected
