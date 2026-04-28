@@ -98,6 +98,25 @@ export default function CameraPage() {
   }, [alias]);
 
   useEffect(() => {
+    if (!isNew) return;
+    setCamera(null);
+    setEditMode(false);
+    setLoading(false);
+    setSaving(false);
+    setCameraStatus('stopped');
+    setFormName('');
+    setFormDesc('');
+    setFormRtsp('');
+    setFormTable('');
+    setFormDetectObjects([]);
+    setFormSaveObjects(false);
+    setFormOutputDir('');
+    setFormArchiveDir('');
+    setFfmpegConfig(FFMPEG_DEFAULT_CONFIG);
+    setPingResult(null);
+  }, [isNew, alias]);
+
+  useEffect(() => {
     if (!config) return;
     if (!isNew) fetchCamera(config);
     Promise.all([getTables(config.ip, config.port), getDetectObjects(config.ip, config.port)])
