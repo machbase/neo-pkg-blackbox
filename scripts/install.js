@@ -40,7 +40,8 @@ function detectPlatform() {
 function preemptiveKill() {
   try {
     if (IS_WIN) {
-      process.exec('@taskkill', '/F', '/IM', BIN_NAME);
+      // /T 로 자식 트리 (mediamtx/ffmpeg 등) 까지 함께 정리 — 부모만 죽이면 자손이 좀비.
+      process.exec('@taskkill', '/F', '/T', '/IM', BIN_NAME);
     } else {
       process.exec('@pkill', '-9', '-x', 'neo-blackbox');
     }
