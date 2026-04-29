@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useApp } from '../context/AppContext';
 import {
@@ -14,6 +14,7 @@ import DetectObjectPicker from '../components/camera/DetectObjectPicker';
 import EventRulesSection from '../components/camera/EventRulesSection';
 import CreateTableModal from '../components/camera/CreateTableModal';
 import CameraLivePreview from '../components/camera/CameraLivePreview';
+import { koreanToQwerty } from '../utils/koreanToQwerty';
 
 // Must match CHANNEL_NAME in App.tsx / SideApp.tsx
 const SIDE_CHANNEL = 'app:neo-blackbox';
@@ -60,6 +61,19 @@ export default function CameraPage() {
   const [pingResult, setPingResult] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
   const [pinging, setPinging] = useState(false);
 
+  // Caret preservation for Camera Name (transform on input shifts caret to end otherwise)
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const nameCaretRef = useRef<{ pos: number; rawLen: number } | null>(null);
+  useLayoutEffect(() => {
+    const saved = nameCaretRef.current;
+    const el = nameInputRef.current;
+    if (!saved || !el) return;
+    const diff = el.value.length - saved.rawLen;
+    const next = Math.max(0, Math.min(saved.pos + diff, el.value.length));
+    el.setSelectionRange(next, next);
+    nameCaretRef.current = null;
+  }, [formName]);
+
   const fetchCamera = async (cfg: MediaServerConfig | null = config) => {
     if (!cfg || !id || isNew) return;
     try {
@@ -98,6 +112,25 @@ export default function CameraPage() {
   }, [alias]);
 
   useEffect(() => {
+    if (!isNew) return;
+    setCamera(null);
+    setEditMode(false);
+    setLoading(false);
+    setSaving(false);
+    setCameraStatus('stopped');
+    setFormName('');
+    setFormDesc('');
+    setFormRtsp('');
+    setFormTable('');
+    setFormDetectObjects([]);
+    setFormSaveObjects(false);
+    setFormOutputDir('');
+    setFormArchiveDir('');
+    setFfmpegConfig(FFMPEG_DEFAULT_CONFIG);
+    setPingResult(null);
+  }, [isNew, alias]);
+
+  useEffect(() => {
     if (!config) return;
     if (!isNew) fetchCamera(config);
     Promise.all([getTables(config.ip, config.port), getDetectObjects(config.ip, config.port)])
@@ -131,6 +164,10 @@ export default function CameraPage() {
   const handleCreate = async () => {
     if (!config) return;
     if (!formName.trim()) { notify('Camera name is required', 'error'); return; }
+    if (!/^[A-Za-z0-9_-]+$/.test(formName.trim())) {
+      notify('Camera name may only contain letters, numbers, underscores, and hyphens', 'error');
+      return;
+    }
     if (!formTable) { notify('Please select a table', 'error'); return; }
     setSaving(true);
     try {
@@ -238,7 +275,23 @@ export default function CameraPage() {
                 <button className="btn btn-ghost" onClick={() => setCreateTableOpen(true)}>New Table</button>
               </div>
             </div>
-            <FormField label="Camera Name *" value={formName} onChange={setFormName} placeholder="CAM-01" />
+            <div>
+              <label className="form-label">Camera Name *</label>
+              <input
+                ref={nameInputRef}
+                value={formName}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  nameCaretRef.current = { pos: e.target.selectionStart ?? raw.length, rawLen: raw.length };
+                  setFormName(koreanToQwerty(raw).replace(/[^A-Za-z0-9_-]/g, ''));
+                }}
+                placeholder="CAM-01"
+                style={{ width: '100%' }}
+              />
+              <div style={{ marginTop: 4, fontSize: 'var(--font-size-sm)', color: 'var(--color-on-surface-disabled)' }}>
+                Letters, numbers, underscore (_), and hyphen (-) only
+              </div>
+            </div>
             <FormField label="Description" value={formDesc} onChange={setFormDesc} placeholder="Enter description" />
           </article>
 
