@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { getConfig, postConfig } from '../services/configApi';
-import { buildFallbackApiConfigData, fromApiToDraft, toPostPayload } from '../services/configMapper';
-import type { ConfigShadow, SettingsDraft } from '../types/settings';
+import {
+  buildFallbackApiConfigData,
+  fromApiToDraft,
+  toPostPayload,
+  validateRetention,
+} from '../services/configMapper';
+import type { ConfigShadow, RetentionSettings, SettingsDraft } from '../types/settings';
 
 function buildInitialState() {
   return fromApiToDraft(buildFallbackApiConfigData());
@@ -61,8 +66,19 @@ export function useConfig() {
     setDraft((prev) => ({ ...prev, log: nextLog }));
   };
 
+  const updateRetention = (nextRetention: RetentionSettings) => {
+    setDraft((prev) => ({ ...prev, retention: nextRetention }));
+  };
+
   const save = async () => {
     if (saving) return;
+    // ★ outer try/catch 진입 전에 validation 수행 — 실패 시 notify + early return
+    // (throw 시 outer catch에서 중복 notify 발생 가능 → early return으로 토스트 중복 방지)
+    const validationError = validateRetention(draft);
+    if (validationError) {
+      notify(validationError, 'error');
+      return;
+    }
     setSaving(true);
     try {
       const payload = toPostPayload(draft, shadow);
@@ -75,5 +91,5 @@ export function useConfig() {
     }
   };
 
-  return { draft, loading, saving, save, updateGeneral, updateFFmpeg, updateLog };
+  return { draft, loading, saving, save, updateGeneral, updateFFmpeg, updateLog, updateRetention };
 }
