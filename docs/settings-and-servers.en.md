@@ -9,11 +9,12 @@ For the Blackbox package, it is best to review the common **Settings** first and
 
 ## Settings Screen
 
-The Settings screen at the top consists of three tabs.
+The Settings screen at the top consists of four tabs.
 
 - `General`
 - `FFmpeg Default`
 - `Log Configuration`
+- `Retention`
 
 Click the **Save** button in the upper-right corner to save your changes.
 
@@ -75,6 +76,57 @@ Recommendations:
 - Troubleshooting: temporarily use `debug`
 
 Since `debug` can increase log volume quickly, avoid keeping it enabled for a long period.
+
+## Retention Tab
+
+The Retention tab defines the automatic cleanup policy for old Blackbox data.
+
+Blackbox stores video information as both Machbase table rows and video files. During long-term operation, storage usage can grow quickly, so it is recommended to configure the retention period and cleanup schedule for production environments.
+
+Main items:
+
+- `Enable Retention`
+  - Enables or disables automatic cleanup.
+- `Keep Hours`
+  - Data older than this number of hours from the current time becomes a cleanup target.
+  - For example, `72` means keeping about 3 days of data.
+- `Start At`
+  - The first scheduled time when automatic cleanup starts.
+  - The schedule value is stored internally in UTC.
+- `Interval Hours`
+  - The repeat interval after the first scheduled run.
+  - For example, `24` means running once per day.
+
+Only the items above are configured by users. Internal options such as `consistency_cleanup`, `targets.database`, and `targets.files` are not entered by users.
+
+When settings are saved, the Retention scheduler reloads the new settings and recalculates the next run time. Saving the settings does not immediately run cleanup.
+
+## Manual Run
+
+**Manual Run** in the Retention tab runs the cleanup once immediately, without waiting for the next scheduled time.
+
+Manual Run does not change the automatic schedule. The next automatic cleanup still follows the configured `Start At` and `Interval Hours`.
+
+After Manual Run finishes, the screen shows the run result. Typical result fields include:
+
+- `Started At`, `Finished At`
+  - The start and finish time of the cleanup.
+- `Cutoff`
+  - Data older than this time was considered for cleanup.
+- `Candidate Rows`
+  - The number of DB rows identified as cleanup candidates.
+- `Deleted Files`
+  - The number of deleted video files.
+- `Missing Files`
+  - The number of DB rows whose referenced file was already missing.
+- `Skipped Files`
+  - The number of files skipped because of safety checks.
+- `Deleted Metadata`
+  - The number of metadata entries removed because no data remained.
+- `Errors`
+  - Errors that occurred during cleanup.
+
+Manual Run can delete real data and files, so in production it is safer to check `Keep Hours` and `Cutoff` before running it.
 
 ## Checks After Saving Settings
 
