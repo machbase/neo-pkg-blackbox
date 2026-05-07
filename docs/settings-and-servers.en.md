@@ -92,12 +92,11 @@ Main items:
   - For example, `72` means keeping about 3 days of data.
 - `Start At`
   - The first scheduled time when automatic cleanup starts.
-  - The schedule value is stored internally in UTC.
+  - Enter this value in the user's local timezone.
+  - The value is converted to UTC internally when it is saved.
 - `Interval Hours`
   - The repeat interval after the first scheduled run.
   - For example, `24` means running once per day.
-
-Only the items above are configured by users. Internal options such as `consistency_cleanup`, `targets.database`, and `targets.files` are not entered by users.
 
 When settings are saved, the Retention scheduler reloads the new settings and recalculates the next run time. Saving the settings does not immediately run cleanup.
 
