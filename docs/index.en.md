@@ -7,7 +7,7 @@ weight: 10
 
 [한국어](./index.kr.md) | **English**
 
-This document explains how to install the **Machbase Neo Blackbox package**, register servers, manage cameras, and review events.
+This document explains how to install the **Machbase Neo Blackbox package**, register servers, manage cameras, configure data retention, and review events.
 
 ## Installation
 
@@ -22,6 +22,7 @@ Installation may take a short time, so wait until it finishes.
 
 - Package installation
 - Saving common settings in the Settings screen
+- Configuring Retention and running manual cleanup
 - Registering a Blackbox Server and testing the connection
 - Adding and editing cameras
 - Creating and using Video panels in Neo dashboards
@@ -32,17 +33,18 @@ Installation may take a short time, so wait until it finishes.
 
 1. Install the Blackbox package in Neo.
 2. Review the common paths and integration settings in Settings.
-3. If a localhost server is auto-registered during the first installation, change `127.0.0.1` to an IP address reachable from other computers.
-4. Add more **Blackbox Server** entries in the left sidebar if needed.
-5. Add cameras under each server.
-6. Adjust Detection, FFmpeg, and Event Rules if needed.
-7. If needed, add a `Video` panel in a Neo dashboard and review camera video there.
-8. Review event history in the Event screen.
+3. If needed, configure the Retention tab to define how long old data is kept and when automatic cleanup runs.
+4. If a localhost server is auto-registered during the first installation, change `127.0.0.1` to an IP address reachable from other computers.
+5. Add more **Blackbox Server** entries in the left sidebar if needed.
+6. Add cameras under each server.
+7. Adjust Detection, FFmpeg, and Event Rules if needed.
+8. If needed, add a `Video` panel in a Neo dashboard and review camera video there.
+9. Review event history in the Event screen.
 
 ## Screen Layout
 
 - Left sidebar: Blackbox Server list, Camera list, Events entry, add server, refresh
-- Top Settings tabs: General, FFmpeg Default, Log Configuration
+- Top Settings tabs: General, FFmpeg Default, Log Configuration, Retention
 - Camera screen: basic information, RTSP connection, Detection, FFmpeg, Event Rules, Live Preview
 - Event screen: search by time range, camera, type, and review details
 

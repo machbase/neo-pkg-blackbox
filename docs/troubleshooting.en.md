@@ -73,6 +73,14 @@ Adjust the following items in **Log Configuration** under Settings.
 
 During normal operation, `info` or `warn` is usually sufficient.
 
+## Retention Does Not Seem to Run
+
+- Check whether `Enable Retention` is turned on in the **Retention** tab under Settings.
+- Check the `Start At` and `Interval Hours` settings. `Start At` is entered in the local timezone in the UI.
+- Check whether the next run time (`Next Run`) in the Retention tab matches your expectation.
+- If you need to verify cleanup immediately, run **Manual Run** and review the result.
+- If files are not deleted, check delete permissions for `Data Directory` and each camera storage path.
+
 ## Recommended Operational Practice
 
 - Start with one server and one camera.

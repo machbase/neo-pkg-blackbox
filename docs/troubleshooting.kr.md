@@ -73,6 +73,14 @@ Settings의 **Log Configuration**에서 다음을 조정합니다.
 
 운영 중에는 `info` 또는 `warn`이 일반적입니다.
 
+## Retention이 실행되지 않는 것 같음
+
+- Settings의 **Retention** 탭에서 `Enable Retention`이 켜져 있는지 확인합니다.
+- `Start At`과 `Interval Hours` 설정을 확인합니다. `Start At`은 화면에서는 Local timezone 기준으로 입력합니다.
+- Retention 탭의 다음 실행 시간(`Next Run`)이 예상과 맞는지 확인합니다.
+- 즉시 확인이 필요하면 **Manual Run**을 실행하고 결과를 확인합니다.
+- 파일 삭제가 되지 않으면 `Data Directory`와 카메라별 저장 경로의 쓰기/삭제 권한을 확인합니다.
+
 ## 운영 권장 사항
 
 - 처음에는 서버 1개, Camera 1개로 시작합니다.
