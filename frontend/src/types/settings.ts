@@ -1,6 +1,6 @@
 import type { ApiConfigData } from './configApi';
 
-export type SettingsTab = 'general' | 'ffmpeg' | 'log';
+export type SettingsTab = 'general' | 'ffmpeg' | 'log' | 'retention';
 
 export interface ServerPaths {
   address: string;
@@ -58,10 +58,22 @@ export interface LogSettings {
   compressOldLogs: boolean;
 }
 
+export interface RetentionSettings {
+  enabled: boolean;
+  keepValue: number;
+  keepUnit: 'hours' | 'days';
+  startAtLocal: string;
+  intervalHours: number;
+  consistencyCleanup: boolean;
+  deleteDatabase: boolean;
+  deleteFiles: boolean;
+}
+
 export interface SettingsDraft {
   general: GeneralSettings;
   ffmpeg: FFmpegDefaults;
   log: LogSettings;
+  retention: RetentionSettings;
 }
 
 export type ConfigShadow = ApiConfigData;

@@ -9,7 +9,7 @@ type ApiResult = {
 
 let bboxBaseUrlPromise: Promise<string> | null = null;
 
-function resolveBboxBaseUrl(): Promise<string> {
+export function resolveBboxBaseUrl(): Promise<string> {
     if (!bboxBaseUrlPromise) {
         bboxBaseUrlPromise = getBboxInfo()
             .then((info) => `${window.location.protocol}//${window.location.hostname}:${info.port}`)

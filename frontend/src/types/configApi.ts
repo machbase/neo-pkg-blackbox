@@ -59,6 +59,14 @@ export interface ApiConfigData {
     binary: string;
     config_file: string;
   };
+  retention?: {
+    enabled: boolean;
+    keep_hours: number;
+    start_at_utc: string;
+    interval_hours: number;
+    consistency_cleanup: boolean;
+    targets: { database: boolean; files: boolean };
+  };
 }
 
 export type ApiConfigPostBody = ApiConfigData;

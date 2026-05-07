@@ -1,5 +1,6 @@
 import type { ApiConfigData, ApiConfigPostBody } from '../types/configApi';
 import type { SettingsDraft } from '../types/settings';
+import { localHHmmToUtc, utcHHmmToLocal } from '../utils/timeUtils';
 
 function cloneApiConfig(data: ApiConfigData): ApiConfigData {
   return JSON.parse(JSON.stringify(data)) as ApiConfigData;
@@ -99,12 +100,24 @@ export function buildFallbackApiConfigData(): ApiConfigData {
       binary: '../ai/blackbox-ai-manager',
       config_file: '../ai/config.json',
     },
+    retention: {
+      enabled: false,
+      keep_hours: 720,
+      start_at_utc: '18:00',
+      interval_hours: 24,
+      consistency_cleanup: true,
+      targets: { database: true, files: true },
+    },
   };
 }
 
 export function fromApiToDraft(api: ApiConfigData): { draft: SettingsDraft; shadow: ApiConfigData } {
   const filename = splitFilename(api.log.file.filename);
   const token = api.machbase.api_token || '';
+
+  const retentionApi = api.retention ?? buildFallbackApiConfigData().retention!;
+  const keepHours = Number.isFinite(retentionApi.keep_hours) ? retentionApi.keep_hours : 0;
+  const useDays = keepHours !== 0 && keepHours % 24 === 0;
 
   const draft: SettingsDraft = {
     general: {
@@ -150,11 +163,26 @@ export function fromApiToDraft(api: ApiConfigData): { draft: SettingsDraft; shad
       maxAgeDays: api.log.file.max_age,
       compressOldLogs: api.log.file.compress,
     },
+    retention: {
+      enabled: !!retentionApi.enabled,
+      keepValue: useDays ? keepHours / 24 : keepHours,
+      keepUnit: useDays ? 'days' : 'hours',
+      startAtLocal: utcHHmmToLocal(retentionApi.start_at_utc),
+      intervalHours: Number.isFinite(retentionApi.interval_hours) ? retentionApi.interval_hours : 24,
+      consistencyCleanup: !!retentionApi.consistency_cleanup,
+      deleteDatabase: !!retentionApi.targets?.database,
+      deleteFiles: !!retentionApi.targets?.files,
+    },
   };
+
+  const shadow = cloneApiConfig(api);
+  if (!shadow.retention) {
+    shadow.retention = { ...retentionApi, targets: { ...retentionApi.targets } };
+  }
 
   return {
     draft,
-    shadow: cloneApiConfig(api),
+    shadow,
   };
 }
 
@@ -200,5 +228,63 @@ export function toPostPayload(draft: SettingsDraft, shadow: ApiConfigData): ApiC
   payload.log.file.max_age = draft.log.maxAgeDays;
   payload.log.file.compress = draft.log.compressOldLogs;
 
+  const retentionDraft = draft.retention;
+  const rawKeepValue = Number.isFinite(retentionDraft.keepValue) ? retentionDraft.keepValue : 0;
+  const keepHours = retentionDraft.keepUnit === 'days' ? rawKeepValue * 24 : rawKeepValue;
+  const intervalRaw = Number(retentionDraft.intervalHours);
+  const intervalHours =
+    !Number.isFinite(intervalRaw) || intervalRaw <= 0 ? 24 : intervalRaw;
+
+  // 정책: targets.database / targets.files / consistency_cleanup 은 사용자 입력과 무관하게
+  // 항상 true 로 전송한다 (UI 노출 없음, 백엔드 정책 고정).
+  payload.retention = {
+    enabled: !!retentionDraft.enabled,
+    keep_hours: keepHours,
+    start_at_utc: localHHmmToUtc(retentionDraft.startAtLocal),
+    interval_hours: intervalHours,
+    consistency_cleanup: true,
+    targets: {
+      database: true,
+      files: true,
+    },
+  };
+
   return payload;
+}
+
+const HM_VALIDATION_PATTERN = /^\d{1,2}:\d{2}(:\d{2})?$/;
+
+/**
+ * Validates retention draft. Returns the first error message, or null if all checks pass.
+ * Rules:
+ *  - keepValue must be >= 1
+ *  - intervalHours must be >= 0
+ *  - startAtLocal must match HH:mm (or HH:mm:ss) within 0-23 / 0-59 ranges
+ *
+ * Targets(deleteDatabase / deleteFiles / consistencyCleanup) 는 정책상 항상 true 로 전송되므로
+ * 별도 검증 대상이 아니다.
+ */
+export function validateRetention(draft: SettingsDraft): string | null {
+  const r = draft.retention;
+
+  if (!Number.isFinite(r.keepValue) || r.keepValue <= 0) {
+    return '보존 기간은 1 이상이어야 합니다.';
+  }
+
+  if (!Number.isFinite(r.intervalHours) || r.intervalHours < 0) {
+    return '반복 주기는 0 이상이어야 합니다.';
+  }
+
+  const startAt = typeof r.startAtLocal === 'string' ? r.startAtLocal.trim() : '';
+  if (!HM_VALIDATION_PATTERN.test(startAt)) {
+    return '시작 시각 형식이 올바르지 않습니다 (HH:mm).';
+  }
+  const [hhStr, mmStr] = startAt.split(':');
+  const hh = Number.parseInt(hhStr ?? '', 10);
+  const mm = Number.parseInt(mmStr ?? '', 10);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+    return '시작 시각 형식이 올바르지 않습니다 (HH:mm).';
+  }
+
+  return null;
 }

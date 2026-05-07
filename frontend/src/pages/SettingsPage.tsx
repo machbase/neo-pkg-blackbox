@@ -3,16 +3,18 @@ import { useConfig } from '../hooks/useConfig';
 import { GeneralTab } from '../tabs/GeneralTab';
 import { FFmpegTab } from '../tabs/FFmpegTab';
 import { LogTab } from '../tabs/LogTab';
+import { RetentionTab } from '../tabs/RetentionTab';
 import Icon from '../components/common/Icon';
 
 const tabs = [
   { path: '/settings/general', label: 'General', icon: 'tune' },
   { path: '/settings/ffmpeg', label: 'FFmpeg Default', icon: 'movie' },
   { path: '/settings/log', label: 'Log Configuration', icon: 'description' },
+  { path: '/settings/retention', label: 'Retention', icon: 'timer' },
 ];
 
 export default function SettingsPage() {
-  const { draft, loading, saving, save, updateGeneral, updateFFmpeg, updateLog } = useConfig();
+  const { draft, loading, saving, save, updateGeneral, updateFFmpeg, updateLog, updateRetention } = useConfig();
 
 if (loading) {
     return (
@@ -51,6 +53,7 @@ if (loading) {
             <Route path="general" element={<GeneralTab settings={draft.general} onChange={updateGeneral} />} />
             <Route path="ffmpeg" element={<FFmpegTab settings={draft.ffmpeg} onChange={updateFFmpeg} />} />
             <Route path="log" element={<LogTab settings={draft.log} onChange={updateLog} />} />
+            <Route path="retention" element={<RetentionTab settings={draft.retention} onChange={updateRetention} />} />
           </Routes>
         </div>
       </div>
