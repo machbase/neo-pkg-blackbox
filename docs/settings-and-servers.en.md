@@ -106,26 +106,20 @@ When settings are saved, the Retention scheduler reloads the new settings and re
 
 Manual Run does not change the automatic schedule. The next automatic cleanup still follows the configured `Start At` and `Interval Hours`.
 
-After Manual Run finishes, the screen shows the run result. Typical result fields include:
+After Manual Run finishes, the screen shows the run result. `Started At`, the cleanup start time, is shown in the upper-right corner of the result area.
 
-- `Started At`, `Finished At`
-  - The start and finish time of the cleanup.
-- `Cutoff`
-  - Data older than this time was considered for cleanup.
-- `Candidate Rows`
+- `ROWS`
   - The number of DB rows identified as cleanup candidates.
-- `Deleted Files`
+- `FILES`
   - The number of deleted video files.
-- `Missing Files`
+- `MISSING`
   - The number of DB rows whose referenced file was already missing.
-- `Skipped Files`
+- `SKIPPED`
   - The number of files skipped because of safety checks.
-- `Deleted Metadata`
+- `METADATA`
   - The number of metadata entries removed because no data remained.
-- `Errors`
-  - Errors that occurred during cleanup.
 
-Manual Run can delete real data and files, so in production it is safer to check `Keep Hours` and `Cutoff` before running it.
+Manual Run can delete real data and files, so in production it is safer to check `Keep Hours` before running it.
 
 ## Checks After Saving Settings
 
