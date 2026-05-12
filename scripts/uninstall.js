@@ -49,10 +49,11 @@ function killBboxTree(label) {
 
   var rc;
   if (IS_WIN) {
-    // PowerShell 로 우리 패키지 경로 필터링 후 강제 종료
-    var ps1 = "Get-Process | Where-Object { $_.Path -like '*\\cgi-bin\\bbox\\*' } | Stop-Process -Force -ErrorAction SilentlyContinue";
-    rc = process.exec('@powershell.exe', '-NoProfile', '-Command', ps1);
-    console.println('killBboxTree[' + label + ']: powershell rc=' + rc);
+    // taskkill /T 로 neo-blackbox + 자식 트리 (mediamtx/ffmpeg/ai-manager/watcher) 한 번에 정리.
+    // 자손이 stdout/stderr 파이프 핸들을 상속받기 때문에 손자까지 안 죽이면
+    // JSH controller 의 cmd.Wait() 가 EOF 못 받아 service.stop 이 먹통.
+    rc = process.exec('@taskkill', '/F', '/T', '/IM', 'neo-blackbox.exe');
+    console.println('killBboxTree[' + label + ']: taskkill rc=' + rc + (rc === 128 ? ' (none matched)' : ''));
   } else {
     // pkill -9 -f 로 cmdline 부분 매칭 — bbox + mediamtx + ai-manager + ffmpeg 모두
     rc = process.exec('@pkill', '-9', '-f', pattern);

@@ -35,8 +35,10 @@ function killBboxTree(label) {
   const pattern = '/cgi-bin/bbox/';
 
   if (IS_WIN) {
-    const ps1 = "Get-Process | Where-Object { $_.Path -like '*\\cgi-bin\\bbox\\*' } | Stop-Process -Force -ErrorAction SilentlyContinue";
-    process.exec('@powershell.exe', '-NoProfile', '-Command', ps1);
+    // taskkill /T 로 neo-blackbox + 자식 트리 (mediamtx/ffmpeg/ai-manager/watcher) 한 번에 정리.
+    // 자손이 stdout/stderr 파이프 핸들을 상속받기 때문에 손자까지 안 죽이면
+    // JSH controller 의 cmd.Wait() 가 EOF 못 받아 service.stop 이 먹통.
+    process.exec('@taskkill', '/F', '/T', '/IM', 'neo-blackbox.exe');
   } else {
     process.exec('@pkill', '-9', '-f', pattern);
   }
