@@ -41,6 +41,7 @@ export interface CameraInfo extends MediaServerConfig {
   webrtc_url?: string;
   media_url?: string;
   model_id?: number;
+  interval?: number;
   detect_objects?: string[];
   save_objects?: boolean;
   ffmpeg_options?: FFmpegOption[];
@@ -57,6 +58,7 @@ export interface CameraCreateRequest {
   desc?: string;
   rtsp_url?: string;
   model_id?: number;
+  interval?: number;
   detect_objects?: string[];
   save_objects?: boolean;
   ffmpeg_options?: FFmpegOption[];
@@ -70,6 +72,7 @@ export interface CameraUpdateRequest {
   desc?: string;
   rtsp_url?: string;
   model_id?: number;
+  interval?: number;
   detect_objects?: string[];
   save_objects?: boolean;
   ffmpeg_options?: FFmpegOption[];

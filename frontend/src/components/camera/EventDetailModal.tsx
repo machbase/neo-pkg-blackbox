@@ -4,7 +4,7 @@ import { getServer } from '../../services/serversApi';
 import { getTimeRange } from '../../services/videoApi';
 import { useChunkPlayer } from '../../hooks/useChunkPlayer';
 import { useCameraGaps } from '../../hooks/useCameraGaps';
-import { formatTimeLabel } from '../../utils/timeUtils';
+import { formatTimeLabel, formatLocalTimestamp } from '../../utils/timeUtils';
 import {
   type SeekUnit, resolveEffectiveFps, getEventMarkerPercent,
   buildEventCenteredRange, formatTimeForSeekUnit,
@@ -547,7 +547,7 @@ export default function EventDetailModal({ isOpen, onClose, event, alias }: Even
           {/* Metadata */}
           <div className="data-list">
             <MetaItem label="Camera" value={event.camera_id} />
-            <MetaItem label="Time" value={event.time} />
+            <MetaItem label="Time" value={formatLocalTimestamp(event.time)} />
             {event.rule_name && <MetaItem label="Rule" value={event.rule_name} />}
           </div>
           {event.expression_text && (
