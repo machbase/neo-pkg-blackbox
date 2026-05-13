@@ -88,7 +88,7 @@ export default function DetectObjectPicker({ items, options, onAdd, onRemove, on
             value={search}
             onChange={(e) => { setSearch(e.target.value); setHighlightIndex(0); }}
             onKeyDown={handleKeyDown}
-            style={{ flex: 1, minWidth: 120, border: 'none', background: 'transparent', padding: 0, outline: 'none', fontSize: 13 }}
+            style={{ flex: 1, minWidth: 120, height: 'auto', border: 'none', background: 'transparent', padding: 0, outline: 'none', fontSize: 13 }}
           />
         )}
       </div>

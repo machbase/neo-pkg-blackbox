@@ -6,6 +6,7 @@ import { getServer } from '../services/serversApi';
 import type { CameraEvent, CameraItem, MediaServerConfig } from '../types/server';
 import Icon from '../components/common/Icon';
 import EventDetailModal from '../components/camera/EventDetailModal';
+import { formatLocalTimestamp } from '../utils/timeUtils';
 
 const EVENT_TYPES = ['ALL', 'MATCH', 'TRIGGER', 'RESOLVE', 'ERROR'] as const;
 const PAGE_SIZE = 20;
@@ -148,7 +149,7 @@ export default function EventPage() {
                     const counts = parseUsedCounts(ev.used_counts_snapshot);
                     return (
                       <tr key={i} onClick={() => { setSelectedEvent(ev); setDetailOpen(true); }}>
-                        <td>{ev.time}</td>
+                        <td className="mono whitespace-nowrap">{formatLocalTimestamp(ev.time)}</td>
                         <td>{ev.camera_id}</td>
                         <td>{ev.rule_name || '-'}</td>
                         <td className="mono">{ev.expression_text || '-'}</td>

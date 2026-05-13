@@ -15,6 +15,7 @@ import EventRulesSection from '../components/camera/EventRulesSection';
 import CreateTableModal from '../components/camera/CreateTableModal';
 import CameraLivePreview from '../components/camera/CameraLivePreview';
 import { koreanToQwerty } from '../utils/koreanToQwerty';
+import { secondsToHmsUnit, hmsUnitToSeconds, isPositiveInteger, type HmsUnit } from '../utils/timeUtils';
 
 // Must match CHANNEL_NAME in App.tsx / SideApp.tsx
 const SIDE_CHANNEL = 'app:neo-blackbox';
@@ -48,6 +49,8 @@ export default function CameraPage() {
   const [formTable, setFormTable] = useState('');
   const [formDetectObjects, setFormDetectObjects] = useState<string[]>([]);
   const [formSaveObjects, setFormSaveObjects] = useState(false);
+  const [formIntervalValue, setFormIntervalValue] = useState<string>('1');
+  const [formIntervalUnit, setFormIntervalUnit] = useState<HmsUnit>('s');
   const [formOutputDir, setFormOutputDir] = useState('');
   const [formArchiveDir, setFormArchiveDir] = useState('');
   const [ffmpegConfig, setFfmpegConfig] = useState<FFmpegConfigType>(FFMPEG_DEFAULT_CONFIG);
@@ -85,6 +88,9 @@ export default function CameraPage() {
       setFormTable(data.table ?? '');
       setFormDetectObjects(data.detect_objects ?? []);
       setFormSaveObjects(data.save_objects ?? false);
+      const { value: ivVal, unit: ivUnit } = secondsToHmsUnit(data.interval ?? 1);
+      setFormIntervalValue(String(ivVal));
+      setFormIntervalUnit(ivUnit);
       setFormOutputDir(data.output_dir ?? '');
       setFormArchiveDir(data.archive_dir ?? '');
       setCameraStatus(data.enabled ? 'running' : 'stopped');
@@ -124,6 +130,8 @@ export default function CameraPage() {
     setFormTable('');
     setFormDetectObjects([]);
     setFormSaveObjects(false);
+    setFormIntervalValue('1');
+    setFormIntervalUnit('s');
     setFormOutputDir('');
     setFormArchiveDir('');
     setFfmpegConfig(FFMPEG_DEFAULT_CONFIG);
@@ -169,6 +177,12 @@ export default function CameraPage() {
       return;
     }
     if (!formTable) { notify('Please select a table', 'error'); return; }
+    const intervalRaw = Number(formIntervalValue);
+    if (!isPositiveInteger(intervalRaw)) {
+      notify('Inference interval must be a positive integer', 'error');
+      return;
+    }
+    const intervalSeconds = hmsUnitToSeconds(intervalRaw, formIntervalUnit);
     setSaving(true);
     try {
       const payload: CameraCreateRequest = {
@@ -176,6 +190,7 @@ export default function CameraPage() {
         name: formName.trim(),
         desc: formDesc || undefined,
         rtsp_url: formRtsp || undefined,
+        interval: intervalSeconds,
         detect_objects: formDetectObjects.length > 0 ? formDetectObjects : undefined,
         save_objects: formSaveObjects,
         ffmpeg_options: ffmpegConfigToOptions(ffmpegConfig),
@@ -198,11 +213,18 @@ export default function CameraPage() {
 
   const handleUpdate = async () => {
     if (!config || !id) return;
+    const intervalRaw = Number(formIntervalValue);
+    if (!isPositiveInteger(intervalRaw)) {
+      notify('Inference interval must be a positive integer', 'error');
+      return;
+    }
+    const intervalSeconds = hmsUnitToSeconds(intervalRaw, formIntervalUnit);
     setSaving(true);
     try {
       const payload: CameraUpdateRequest = {
         desc: formDesc || undefined,
         rtsp_url: formRtsp || undefined,
+        interval: intervalSeconds,
         detect_objects: formDetectObjects.length > 0 ? formDetectObjects : undefined,
         save_objects: formSaveObjects,
         ffmpeg_options: ffmpegConfigToOptions(ffmpegConfig),
@@ -252,6 +274,12 @@ export default function CameraPage() {
   if (loading) {
     return <Shell><p style={{ color: 'var(--color-on-surface-disabled)' }}>Loading...</p></Shell>;
   }
+
+  const intervalNum = Number(formIntervalValue);
+  const intervalInvalid = formIntervalValue.trim() === '' || !isPositiveInteger(intervalNum);
+  const intervalHelper = intervalInvalid
+    ? { text: 'Must be a positive integer (≥ 1)', color: 'var(--color-error)' }
+    : { text: 'Positive integer only (default 1 second)', color: 'var(--color-on-surface-disabled)' };
 
   // ── Create mode ──
   if (isNew) {
@@ -318,6 +346,28 @@ export default function CameraPage() {
             <div>
               <label className="form-label">Detect Objects</label>
               <DetectObjectPicker items={formDetectObjects} options={detectList} onAdd={(n) => setFormDetectObjects((p) => [...p, n])} onRemove={(n) => setFormDetectObjects((p) => p.filter((x) => x !== n))} />
+            </div>
+            <div>
+              <label className="form-label">AI Inference Interval</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={formIntervalValue}
+                  onChange={(e) => setFormIntervalValue(e.target.value)}
+                  onBlur={() => { if (formIntervalValue === '') setFormIntervalValue('1'); }}
+                  style={{ flex: 1 }}
+                />
+                <select value={formIntervalUnit} onChange={(e) => setFormIntervalUnit(e.target.value as HmsUnit)}>
+                  <option value="s">Seconds</option>
+                  <option value="m">Minutes</option>
+                  <option value="h">Hours</option>
+                </select>
+              </div>
+              <div style={{ marginTop: 4, fontSize: 'var(--font-size-sm)', color: intervalHelper.color }}>
+                {intervalHelper.text}
+              </div>
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--font-size-sm)', cursor: 'pointer' }}>
               <input type="checkbox" checked={formSaveObjects} onChange={(e) => setFormSaveObjects(e.target.checked)} /> Save detection results
@@ -408,9 +458,9 @@ export default function CameraPage() {
           </article>
 
           {/* Detection */}
-          <article className="card">
+          <article className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <h3 className="card-title"><Icon name="visibility" className="icon-sm" /> Detection</h3>
-            <div style={{ marginBottom: 8 }}>
+            <div>
               <label className="form-label">Detect Objects</label>
               <DetectObjectPicker
                 items={isEditing ? formDetectObjects : (camera.detect_objects ?? [])}
@@ -429,12 +479,40 @@ export default function CameraPage() {
               />
             </div>
             {isEditing ? (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--font-size-sm)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={formSaveObjects} onChange={(e) => setFormSaveObjects(e.target.checked)} /> Save detection results
-              </label>
+              <div>
+                <label className="form-label">AI Inference Interval</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={formIntervalValue}
+                    onChange={(e) => setFormIntervalValue(e.target.value)}
+                    onBlur={() => { if (formIntervalValue === '') setFormIntervalValue('1'); }}
+                    style={{ flex: 1 }}
+                  />
+                  <select value={formIntervalUnit} onChange={(e) => setFormIntervalUnit(e.target.value as HmsUnit)}>
+                    <option value="s">Seconds</option>
+                    <option value="m">Minutes</option>
+                    <option value="h">Hours</option>
+                  </select>
+                </div>
+                <div style={{ marginTop: 4, fontSize: 'var(--font-size-sm)', color: 'var(--color-on-surface-disabled)' }}>
+                  Positive integer only (default 1 second)
+                </div>
+              </div>
             ) : (
-              <InfoField label="Save Objects" value={camera.save_objects ? 'Yes' : 'No'} />
+              <InfoField label="AI Inference Interval" value={formatIntervalLabel(camera.interval)} />
             )}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--font-size-sm)', cursor: isEditing ? 'pointer' : 'default' }}>
+              <input
+                type="checkbox"
+                checked={isEditing ? formSaveObjects : !!camera.save_objects}
+                onChange={(e) => setFormSaveObjects(e.target.checked)}
+                disabled={!isEditing}
+              />
+              Save detection results
+            </label>
           </article>
 
           {/* Event Rules */}
@@ -463,6 +541,14 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 function InfoField({ label, value }: { label: string; value: string }) {
   return <div><div className="form-label">{label}</div><div className="dash-field-box">{value || '-'}</div></div>;
+}
+
+function formatIntervalLabel(seconds: number | undefined): string {
+  const { value, unit } = secondsToHmsUnit(seconds ?? 1);
+  const unitLabel = unit === 'h' ? (value === 1 ? 'hour' : 'hours')
+    : unit === 'm' ? (value === 1 ? 'minute' : 'minutes')
+    : (value === 1 ? 'second' : 'seconds');
+  return `${value} ${unitLabel}`;
 }
 function FormField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
   return <div><label className="form-label">{label}</label><input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ width: '100%' }} /></div>;

@@ -95,6 +95,54 @@ export function localHHmmToUtc(input: string): string {
 }
 
 /**
+ * Format an ISO timestamp (UTC or local) as "YYYY-MM-DD HH:mm:ss.SSS" in the
+ * browser's local timezone. Returns '-' for empty input, or the original
+ * string if it cannot be parsed (defensive — avoids breaking the UI on bad data).
+ */
+export function formatLocalTimestamp(iso: string | undefined | null): string {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const ms = String(d.getMilliseconds()).padStart(3, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${ms}`;
+}
+
+export type HmsUnit = 'h' | 'm' | 's';
+
+/**
+ * Convert total seconds → (value, unit) pair.
+ * Picks the largest unit that divides evenly (3600 → hours, 60 → minutes, else seconds).
+ * Non-positive / non-finite input falls back to { value: 1, unit: 's' }.
+ */
+export function secondsToHmsUnit(seconds: number): { value: number; unit: HmsUnit } {
+  if (!Number.isFinite(seconds) || seconds <= 0) return { value: 1, unit: 's' };
+  const s = Math.floor(seconds);
+  if (s % 3600 === 0) return { value: s / 3600, unit: 'h' };
+  if (s % 60 === 0) return { value: s / 60, unit: 'm' };
+  return { value: s, unit: 's' };
+}
+
+/**
+ * Convert (value, unit) → total seconds.
+ */
+export function hmsUnitToSeconds(value: number, unit: HmsUnit): number {
+  switch (unit) {
+    case 'h': return value * 3600;
+    case 'm': return value * 60;
+    case 's':
+    default: return value;
+  }
+}
+
+/**
+ * Strict positive integer check (>=1, integer, finite).
+ */
+export function isPositiveInteger(value: number): boolean {
+  return Number.isInteger(value) && value > 0;
+}
+
+/**
  * Returns the current user timezone offset in "UTC+09:00" / "UTC-05:30" / "UTC" format.
  * Handles fractional offsets (e.g. India +05:30) via minute-level precision.
  */
