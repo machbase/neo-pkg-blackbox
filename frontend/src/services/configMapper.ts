@@ -59,6 +59,7 @@ export function buildFallbackApiConfigData(): ApiConfigData {
       scheme: 'http',
       host: '127.0.0.1',
       port: 5654,
+      database: 'MACHBASEDB',
       timeout_seconds: 30,
       api_token: '',
     },
@@ -130,6 +131,7 @@ export function fromApiToDraft(api: ApiConfigData): { draft: SettingsDraft; shad
       machbase: {
         host: api.machbase.host,
         port: api.machbase.port,
+        database: api.machbase.database || 'MACHBASEDB',
         timeoutSeconds: api.machbase.timeout_seconds,
         useToken: token.trim() !== '',
         apiToken: token,
@@ -197,6 +199,7 @@ export function toPostPayload(draft: SettingsDraft, shadow: ApiConfigData): ApiC
 
   payload.machbase.host = draft.general.machbase.host;
   payload.machbase.port = draft.general.machbase.port;
+  payload.machbase.database = draft.general.machbase.database || 'MACHBASEDB';
   payload.machbase.timeout_seconds = draft.general.machbase.timeoutSeconds;
   payload.machbase.api_token = draft.general.machbase.useToken ? draft.general.machbase.apiToken : '';
 
