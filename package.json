@@ -1,7 +1,7 @@
 {
     "name": "neo-pkg-blackbox",
-    "version": "1.0.9",
-    "minServerVersion": "8.5.4",
+    "version": "1.0.10-rc1",
+    "minServerVersion": "8.7.0",
     "scripts": {
         "install": "./scripts/install.js",
         "uninstall": "./scripts/uninstall.js",
