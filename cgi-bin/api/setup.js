@@ -2,17 +2,15 @@
 
 const path = require('path');
 const process = require('process');
-const http = require('http');
 const fs = require('fs');
 const os = require('os');
-const tar = require('archive/tar');
-const zip = require('archive/zip');
 
 const ROOT = path.resolve(path.dirname(process.argv[1]));
 const CGI_BIN = path.resolve(ROOT, '..');
 const BBOX_DIR = path.join(CGI_BIN, 'bbox');
 const REPO = 'machbase/neo-pkg-bbox';
 const IS_WIN = os.platform() === 'windows';
+const HOST_PATH = IS_WIN ? path.win32 : path;
 const BIN_NAME = IS_WIN ? 'neo-blackbox.exe' : 'neo-blackbox';
 const ARCHIVE_EXT = IS_WIN ? '.zip' : '.tar.gz';
 
@@ -49,74 +47,148 @@ function detectPlatform() {
   return `${osPart}-${archPart}`;
 }
 
+function hostPath(virtualPath) {
+  if (virtualPath !== '/work' && !virtualPath.startsWith('/work/')) {
+    throw new Error('installer path must be under /work: ' + virtualPath);
+  }
+
+  const hostWorkDir = HOST_PATH.dirname(process.execPath);
+  const relative = virtualPath.substring('/work'.length).replace(/^\/+/, '');
+  if (!relative) return hostWorkDir;
+  return HOST_PATH.join.apply(HOST_PATH, [hostWorkDir].concat(relative.split('/')));
+}
+
+function removePath(targetPath) {
+  if (fs.existsSync(targetPath)) {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+  }
+}
+
+function runExternal(command, args, label) {
+  const code = process.exec.apply(process, ['@' + command].concat(args));
+  if (code !== 0) {
+    throw new Error(label + ' failed (exit code ' + code + ')');
+  }
+}
+
+function powerShellQuote(value) {
+  return "'" + String(value).replace(/'/g, "''") + "'";
+}
+
 function download(url, destPath, callback) {
-  const MAX_REDIRECTS = 10;
-  const headers = { 'User-Agent': 'neo-pkg-blackbox' };
+  try {
+    removePath(destPath);
+    const hostDestPath = hostPath(destPath);
 
-  function fetch(fetchUrl, remaining) {
-    http.get(fetchUrl, { headers }, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400) {
-        const location = res.headers && res.headers.location;
-        if (!location) {
-          callback(new Error('redirect ' + res.statusCode + ' without location'));
-          return;
-        }
-        if (remaining <= 0) {
-          callback(new Error('too many redirects'));
-          return;
-        }
-        fetch(location, remaining - 1);
-        return;
-      }
-      if (!res.ok) {
-        callback(new Error('HTTP ' + res.statusCode));
-        return;
-      }
-      const buffer = res.readBodyBuffer();
-      if (!buffer || buffer.byteLength === 0) {
-        callback(new Error('empty download'));
-        return;
-      }
-      fs.writeFileSync(destPath, buffer);
-      callback(null);
-    });
-  }
-
-  fetch(url, MAX_REDIRECTS);
-}
-
-function writeEntries(entries, destDir) {
-  fs.mkdirSync(destDir, { recursive: true });
-
-  for (const entry of entries) {
-    const parts = entry.name.split('/');
-    if (parts.length > 1) {
-      parts.shift();
-    }
-    const relativePath = parts.join('/');
-    if (!relativePath) continue;
-
-    const fullPath = path.join(destDir, relativePath);
-    if (entry.isDir) {
-      fs.mkdirSync(fullPath, { recursive: true });
+    if (IS_WIN) {
+      const ps = [
+        "$ErrorActionPreference = 'Stop'",
+        'Invoke-WebRequest -UseBasicParsing -Uri ' + powerShellQuote(url) +
+          ' -OutFile ' + powerShellQuote(hostDestPath),
+      ].join('; ');
+      runExternal(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps],
+        'download'
+      );
     } else {
-      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-      fs.writeFileSync(fullPath, entry.data);
-      if (entry.mode) {
-        fs.chmod(fullPath, entry.mode & 0o777);
-      }
+      runExternal(
+        'curl',
+        [
+          '--fail', '--location', '--silent', '--show-error',
+          '--retry', '3', '--connect-timeout', '30',
+          '--output', hostDestPath, url,
+        ],
+        'download'
+      );
     }
+
+    if (!fs.existsSync(destPath) || fs.statSync(destPath).size === 0) {
+      throw new Error('empty download');
+    }
+    callback(null);
+  } catch (err) {
+    removePath(destPath);
+    callback(err);
   }
 }
 
-function extract(archivePath, destDir) {
-  if (IS_WIN) {
-    const buf = fs.readFileSync(archivePath, { encoding: 'buffer' });
-    writeEntries(zip.unzipSync(buf), destDir);
-  } else {
-    const zlib = require('zlib');
-    const compressed = fs.readFileSync(archivePath, { encoding: 'buffer' });
-    writeEntries(tar.untarSync(zlib.gunzipSync(compressed)), destDir);
+function directoryEntries(dirPath) {
+  return fs.readdirSync(dirPath).filter((name) => name !== '.' && name !== '..');
+}
+
+function normalizePackageRoot(stageDir) {
+  const directBinary = path.join(stageDir, 'bin', BIN_NAME);
+  if (fs.existsSync(directBinary)) return;
+
+  const entries = directoryEntries(stageDir);
+  if (entries.length !== 1) {
+    throw new Error('archive must contain one package root directory');
+  }
+
+  const packageRoot = path.join(stageDir, entries[0]);
+  if (!fs.statSync(packageRoot).isDirectory() ||
+      !fs.existsSync(path.join(packageRoot, 'bin', BIN_NAME))) {
+    throw new Error('archive does not contain bin/' + BIN_NAME);
+  }
+
+  for (const child of directoryEntries(packageRoot)) {
+    fs.renameSync(path.join(packageRoot, child), path.join(stageDir, child));
+  }
+  fs.rmdirSync(packageRoot);
+}
+
+function extract(archivePath, stageDir) {
+  removePath(stageDir);
+  fs.mkdirSync(stageDir, { recursive: true });
+
+  try {
+    const hostArchivePath = hostPath(archivePath);
+    const hostStageDir = hostPath(stageDir);
+
+    if (IS_WIN) {
+      const ps = [
+        "$ErrorActionPreference = 'Stop'",
+        'Expand-Archive -LiteralPath ' + powerShellQuote(hostArchivePath) +
+          ' -DestinationPath ' + powerShellQuote(hostStageDir) + ' -Force',
+      ].join('; ');
+      runExternal(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps],
+        'extract'
+      );
+    } else {
+      runExternal(
+        'tar',
+        ['-xzf', hostArchivePath, '-C', hostStageDir, '--no-same-owner'],
+        'extract'
+      );
+    }
+
+    normalizePackageRoot(stageDir);
+  } catch (err) {
+    removePath(stageDir);
+    throw err;
+  }
+}
+
+function replaceInstallation(stageDir, destDir) {
+  const backupDir = destDir + '.previous';
+
+  if (fs.existsSync(backupDir) && !fs.existsSync(destDir)) {
+    fs.renameSync(backupDir, destDir);
+  }
+  removePath(backupDir);
+
+  if (fs.existsSync(destDir)) fs.renameSync(destDir, backupDir);
+  try {
+    fs.renameSync(stageDir, destDir);
+    removePath(backupDir);
+  } catch (err) {
+    if (!fs.existsSync(destDir) && fs.existsSync(backupDir)) {
+      fs.renameSync(backupDir, destDir);
+    }
+    throw err;
   }
 }
 
@@ -131,20 +203,40 @@ log('platform:', platform);
 log('downloading:', url);
 
 const tmpFile = path.join(CGI_BIN, '.bbox-download' + ARCHIVE_EXT);
+const stageDir = path.join(CGI_BIN, '.bbox-installing');
+
+function cleanupTemporaryArtifacts() {
+  removePath(tmpFile);
+  removePath(stageDir);
+}
+
+// 이전 설치가 강제 중단됐더라도 새 설치를 깨끗한 상태에서 시작한다.
+cleanupTemporaryArtifacts();
+// 정상 종료 시에도 순수 임시 artifact를 남기지 않는다.
+process.addShutdownHook(cleanupTemporaryArtifacts);
+
 download(url, tmpFile, (err) => {
   if (err) {
+    removePath(stageDir);
     reply({ ok: false, reason: err.message || String(err), log: logs });
     return;
   }
 
   log('extracting to:', BBOX_DIR);
   try {
-    extract(tmpFile, BBOX_DIR);
-    fs.unlinkSync(tmpFile);
+    extract(tmpFile, stageDir);
+    const stagedBinPath = path.join(stageDir, 'bin', BIN_NAME);
+    if (!fs.existsSync(stagedBinPath)) {
+      throw new Error('binary missing: ' + stagedBinPath);
+    }
+    replaceInstallation(stageDir, BBOX_DIR);
   } catch (exErr) {
+    removePath(stageDir);
+    removePath(tmpFile);
     reply({ ok: false, reason: exErr.message || String(exErr), log: logs });
     return;
   }
+  removePath(tmpFile);
 
   // 바이너리 존재 확인 (설치 실패 조기 감지)
   const binPath = path.join(BBOX_DIR, 'bin', BIN_NAME);
