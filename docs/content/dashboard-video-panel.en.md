@@ -23,7 +23,7 @@ This lets you view registered camera streams inside a dashboard, show the curren
 4. Configure the `Source` and `Events` tabs on the left and the option panel on the right.
 5. Save the panel with **Apply** or **Save**.
 
-![Video panel creation screen](./images/blackbox-dashboard-video-create.png)
+![Video panel creation screen]({{< asset "images/blackbox-dashboard-video-create.png" >}})
 
 ## Source Tab
 
@@ -75,7 +75,7 @@ In `Child dashboard`, you specify a linked dashboard.
 
 Once a child dashboard is registered, you can open it in a new window from the `Child board` item in the Video panel header menu.
 
-![Right option panel screen](./images/blackbox-dashboard-video-options.png)
+![Right option panel screen]({{< asset "images/blackbox-dashboard-video-options.png" >}})
 
 ## Panel Header Menu
 
@@ -91,7 +91,7 @@ The Video panel header menu provides the following functions.
 
 Synchronization is mainly useful when reviewing recorded video rather than Live playback.
 
-![Panel header menu screen](./images/blackbox-dashboard-video-menu.png)
+![Panel header menu screen]({{< asset "images/blackbox-dashboard-video-menu.png" >}})
 
 ## Bottom Controls and Timeline
 
@@ -110,7 +110,7 @@ Segments with no video data in the selected time range are shown in red on the p
 
 The image below shows an example where the current video time is drawn as a vertical dashed line on the selected chart during recorded playback.
 
-![Chart synchronization marker screen](./images/blackbox-dashboard-video-sync.png)
+![Chart synchronization marker screen]({{< asset "images/blackbox-dashboard-video-sync.png" >}})
 
 ## Event Notifications and Review
 
@@ -120,9 +120,9 @@ If events exist in the currently viewed time range, the event notification icon 
 - Click the icon to open the event list.
 - Selecting an event in the list moves the panel to that time so you can review the video.
 
-![Event icon and count screen](./images/blackbox-dashboard-video-events.png)
+![Event icon and count screen]({{< asset "images/blackbox-dashboard-video-events.png" >}})
 
-![Event list screen](./images/blackbox-dashboard-video-events2.png)
+![Event list screen]({{< asset "images/blackbox-dashboard-video-events2.png" >}})
 
 ## Operational Tips
 
@@ -132,6 +132,6 @@ If events exist in the currently viewed time range, the event notification icon 
 
 ## Navigation
 
-- [Previous: Camera Management](./camera-management.en.md)
-- [Back to Index](./index.en.md)
-- [Next: Event Monitoring](./event-monitoring.en.md)
+- [Previous: Camera Management]({{< relref "camera-management" >}})
+- [Back to Index]({{< relref "/" >}})
+- [Next: Event Monitoring]({{< relref "event-monitoring" >}})

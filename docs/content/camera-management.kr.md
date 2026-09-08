@@ -24,7 +24,7 @@ Blackbox Server를 등록한 뒤에는 각 서버 아래에 Camera를 추가하�
 
 `Table` 목록이 비어 있으면 **New Table** 버튼으로 새 테이블을 만들 수 있습니다.
 
-![새 Camera 등록 화면](./images/blackbox-camera-new.png)
+![새 Camera 등록 화면]({{< asset "images/blackbox-camera-new.png" >}})
 
 ## RTSP 연결 확인
 
@@ -94,7 +94,7 @@ Event Rule 편집 화면에서는 이 목록이 `Idents`로 표시되며, 항목
 
 실행 중 Camera는 상태 스위치가 `Enabled`로 보입니다.
 
-![Camera 상세 화면](./images/blackbox-camera-detail.png)
+![Camera 상세 화면]({{< asset "images/blackbox-camera-detail.png" >}})
 
 ## Camera 시작과 중지
 
@@ -118,6 +118,6 @@ Camera 삭제는 되돌릴 수 없으므로, 운영 중인 카메라는 삭제�
 
 ## 문서 이동
 
-- [이전: Settings와 서버 등록](./settings-and-servers.kr.md)
-- [목차로 돌아가기](./index.kr.md)
-- [다음: 대시보드 Video 패널 사용](./dashboard-video-panel.kr.md)
+- [이전: Settings와 서버 등록]({{< relref "settings-and-servers" >}})
+- [목차로 돌아가기]({{< relref "/" >}})
+- [다음: 대시보드 Video 패널 사용]({{< relref "dashboard-video-panel" >}})

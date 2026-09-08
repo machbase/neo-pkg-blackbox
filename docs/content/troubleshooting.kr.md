@@ -89,5 +89,5 @@ Settings의 **Log Configuration**에서 다음을 조정합니다.
 
 ## 문서 이동
 
-- [이전: 이벤트 조회](./event-monitoring.kr.md)
-- [목차로 돌아가기](./index.kr.md)
+- [이전: 이벤트 조회]({{< relref "event-monitoring" >}})
+- [목차로 돌아가기]({{< relref "/" >}})

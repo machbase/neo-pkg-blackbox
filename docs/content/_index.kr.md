@@ -5,7 +5,7 @@ weight: 10
 
 # Blackbox 사용자 매뉴얼
 
-**한국어** | [English](./index.en.md)
+**한국어** | [English]({{< relref "/" >}})
 
 이 문서는 **Machbase Neo Blackbox 패키지**의 설치, 서버 등록, 카메라 관리, 데이터 보존 설정, 이벤트 조회 방법을 설명합니다.
 
@@ -16,7 +16,7 @@ Machbase Neo 좌측 사이드 패널에는 사용 가능한 패키지 목록이 
 
 설치에는 약간의 시간이 걸릴 수 있으므로, 완료될 때까지 잠시 기다립니다.
 
-![패키지 설치 화면](./images/package-install.png)
+![패키지 설치 화면]({{< asset "images/package-install.png" >}})
 
 ## 이 문서에서 다루는 내용
 
@@ -48,16 +48,16 @@ Machbase Neo 좌측 사이드 패널에는 사용 가능한 패키지 목록이 
 - Camera 화면: 기본 정보, RTSP 연결, Detection, FFmpeg, Event Rules, Live Preview
 - Event 화면: 기간/카메라/타입 조건 검색과 상세 보기
 
-![Blackbox 메인 화면](./images/blackbox-sidebar.png)
+![Blackbox 메인 화면]({{< asset "images/blackbox-sidebar.png" >}})
 
 ## 문서 목록
 
-- [Settings와 서버 등록](./settings-and-servers.kr.md)
-- [카메라 관리](./camera-management.kr.md)
-- [대시보드 Video 패널 사용](./dashboard-video-panel.kr.md)
-- [이벤트 조회](./event-monitoring.kr.md)
-- [문제 해결](./troubleshooting.kr.md)
+- [Settings와 서버 등록]({{< relref "settings-and-servers" >}})
+- [카메라 관리]({{< relref "camera-management" >}})
+- [대시보드 Video 패널 사용]({{< relref "dashboard-video-panel" >}})
+- [이벤트 조회]({{< relref "event-monitoring" >}})
+- [문제 해결]({{< relref "troubleshooting" >}})
 
 ## 문서 이동
 
-- [다음: Settings와 서버 등록](./settings-and-servers.kr.md)
+- [다음: Settings와 서버 등록]({{< relref "settings-and-servers" >}})

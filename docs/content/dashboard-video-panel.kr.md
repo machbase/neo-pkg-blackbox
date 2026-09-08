@@ -23,7 +23,7 @@ weight: 40
 4. 좌측의 `Source`, `Events` 탭과 우측 옵션 패널을 순서대로 설정합니다.
 5. **Apply** 또는 **Save**로 저장합니다.
 
-![Video 패널 생성 화면](./images/blackbox-dashboard-video-create.png)
+![Video 패널 생성 화면]({{< asset "images/blackbox-dashboard-video-create.png" >}})
 
 ## Source 탭
 
@@ -75,7 +75,7 @@ weight: 40
 
 child dashboard가 등록되면 Video 패널 헤더 메뉴의 `Child board` 항목에서 해당 대시보드를 새 창으로 열 수 있습니다.
 
-![우측 옵션 패널 화면](./images/blackbox-dashboard-video-options.png)
+![우측 옵션 패널 화면]({{< asset "images/blackbox-dashboard-video-options.png" >}})
 
 ## 패널 헤더 메뉴
 
@@ -91,7 +91,7 @@ Video 패널 헤더 메뉴에서는 다음 기능을 사용할 수 있습니다.
 
 동기화는 주로 녹화 영상 조회 구간에서 사용하는 기능으로 보는 것이 좋습니다.
 
-![패널 헤더 메뉴 화면](./images/blackbox-dashboard-video-menu.png)
+![패널 헤더 메뉴 화면]({{< asset "images/blackbox-dashboard-video-menu.png" >}})
 
 ## 패널 하단 버튼과 타임라인
 
@@ -110,7 +110,7 @@ Video 패널 아래쪽에는 조회와 탐색에 필요한 버튼이 표시됩�
 
 아래 화면은 녹화 영상 조회 중 Video 패널의 현재 시각이 선택한 차트에 세로 점선으로 표시되는 예시입니다.
 
-![차트 동기화 표시 화면](./images/blackbox-dashboard-video-sync.png)
+![차트 동기화 표시 화면]({{< asset "images/blackbox-dashboard-video-sync.png" >}})
 
 ## 이벤트 알림과 확인
 
@@ -120,9 +120,9 @@ Video 패널 아래쪽에는 조회와 탐색에 필요한 버튼이 표시됩�
 - 아이콘을 클릭하면 이벤트 목록을 열 수 있습니다.
 - 목록에서 이벤트를 선택하면 해당 시점으로 이동해 영상을 확인할 수 있습니다.
 
-![이벤트 아이콘과 개수 표시 화면](./images/blackbox-dashboard-video-events.png)
+![이벤트 아이콘과 개수 표시 화면]({{< asset "images/blackbox-dashboard-video-events.png" >}})
 
-![이벤트 목록 확인 화면](./images/blackbox-dashboard-video-events2.png)
+![이벤트 목록 확인 화면]({{< asset "images/blackbox-dashboard-video-events2.png" >}})
 
 ## 운영 팁
 
@@ -132,6 +132,6 @@ Video 패널 아래쪽에는 조회와 탐색에 필요한 버튼이 표시됩�
 
 ## 문서 이동
 
-- [이전: 카메라 관리](./camera-management.kr.md)
-- [목차로 돌아가기](./index.kr.md)
-- [다음: 이벤트 조회](./event-monitoring.kr.md)
+- [이전: 카메라 관리]({{< relref "camera-management" >}})
+- [목차로 돌아가기]({{< relref "/" >}})
+- [다음: 이벤트 조회]({{< relref "event-monitoring" >}})

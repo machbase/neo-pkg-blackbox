@@ -5,7 +5,7 @@ weight: 10
 
 # Blackbox User Manual
 
-[한국어](./index.kr.md) | **English**
+[한국어]({{< relref "/" >}}) | **English**
 
 This document explains how to install the **Machbase Neo Blackbox package**, register servers, manage cameras, configure data retention, and review events.
 
@@ -16,7 +16,7 @@ Select the Blackbox package there and click the `Install` button to install it.
 
 Installation may take a short time, so wait until it finishes.
 
-![Package installation screen](./images/package-install.png)
+![Package installation screen]({{< asset "images/package-install.png" >}})
 
 ## What This Document Covers
 
@@ -48,16 +48,16 @@ Installation may take a short time, so wait until it finishes.
 - Camera screen: basic information, RTSP connection, Detection, FFmpeg, Event Rules, Live Preview
 - Event screen: search by time range, camera, type, and review details
 
-![Blackbox main screen](./images/blackbox-sidebar.png)
+![Blackbox main screen]({{< asset "images/blackbox-sidebar.png" >}})
 
 ## Document List
 
-- [Settings and Server Registration](./settings-and-servers.en.md)
-- [Camera Management](./camera-management.en.md)
-- [Using Dashboard Video Panels](./dashboard-video-panel.en.md)
-- [Event Monitoring](./event-monitoring.en.md)
-- [Troubleshooting](./troubleshooting.en.md)
+- [Settings and Server Registration]({{< relref "settings-and-servers" >}})
+- [Camera Management]({{< relref "camera-management" >}})
+- [Using Dashboard Video Panels]({{< relref "dashboard-video-panel" >}})
+- [Event Monitoring]({{< relref "event-monitoring" >}})
+- [Troubleshooting]({{< relref "troubleshooting" >}})
 
 ## Navigation
 
-- [Next: Settings and Server Registration](./settings-and-servers.en.md)
+- [Next: Settings and Server Registration]({{< relref "settings-and-servers" >}})

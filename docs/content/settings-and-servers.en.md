@@ -18,7 +18,7 @@ The Settings screen at the top consists of four tabs.
 
 Click the **Save** button in the upper-right corner to save your changes.
 
-![General settings screen](./images/blackbox-settings-general.png)
+![General settings screen]({{< asset "images/blackbox-settings-general.png" >}})
 
 ## General Tab
 
@@ -149,7 +149,7 @@ Registration flow:
 3. If possible, run **Test Connection** first.
 4. Click **Save**.
 
-![Blackbox server registration screen](./images/blackbox-server-form.png)
+![Blackbox server registration screen]({{< asset "images/blackbox-server-form.png" >}})
 
 ## Check the Auto-Registered Localhost Server After Installation
 
@@ -167,7 +167,7 @@ Recommended flow:
 4. Run **Test Connection** again.
 5. Click **Save**.
 
-![Editing the localhost server IP](./images/blackbox-server-localhost-edit.png)
+![Editing the localhost server IP]({{< asset "images/blackbox-server-localhost-edit.png" >}})
 
 ## Managing Registered Servers
 
@@ -192,5 +192,5 @@ Deleting a server can also make the cameras under that server inaccessible, so u
 
 ## Navigation
 
-- [Back to Index](./index.en.md)
-- [Next: Camera Management](./camera-management.en.md)
+- [Back to Index]({{< relref "/" >}})
+- [Next: Camera Management]({{< relref "camera-management" >}})

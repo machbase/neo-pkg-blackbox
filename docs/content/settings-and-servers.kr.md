@@ -18,7 +18,7 @@ Blackbox 패키지는 먼저 **공통 설정(Settings)** 을 확인한 뒤, 실�
 
 오른쪽 상단의 **Save** 버튼을 눌러 변경 내용을 저장합니다.
 
-![General 설정 화면](./images/blackbox-settings-general.png)
+![General 설정 화면]({{< asset "images/blackbox-settings-general.png" >}})
 
 ## General 탭
 
@@ -149,7 +149,7 @@ Manual Run은 실제 데이터와 파일을 정리할 수 있으므로, 운영 �
 3. 가능하면 **Test Connection**으로 먼저 연결 확인
 4. **Save**로 저장
 
-![Blackbox 서버 등록 화면](./images/blackbox-server-form.png)
+![Blackbox 서버 등록 화면]({{< asset "images/blackbox-server-form.png" >}})
 
 ## 최초 설치 후 localhost 서버 확인
 
@@ -167,7 +167,7 @@ Manual Run은 실제 데이터와 파일을 정리할 수 있으므로, 운영 �
 4. **Test Connection**으로 다시 확인합니다.
 5. **Save**로 저장합니다.
 
-![localhost 서버 IP 변경 화면](./images/blackbox-server-localhost-edit.png)
+![localhost 서버 IP 변경 화면]({{< asset "images/blackbox-server-localhost-edit.png" >}})
 
 ## 등록된 서버 관리
 
@@ -192,5 +192,5 @@ Manual Run은 실제 데이터와 파일을 정리할 수 있으므로, 운영 �
 
 ## 문서 이동
 
-- [목차로 돌아가기](./index.kr.md)
-- [다음: 카메라 관리](./camera-management.kr.md)
+- [목차로 돌아가기]({{< relref "/" >}})
+- [다음: 카메라 관리]({{< relref "camera-management" >}})

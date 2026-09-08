@@ -89,5 +89,5 @@ During normal operation, `info` or `warn` is usually sufficient.
 
 ## Navigation
 
-- [Previous: Event Monitoring](./event-monitoring.en.md)
-- [Back to Index](./index.en.md)
+- [Previous: Event Monitoring]({{< relref "event-monitoring" >}})
+- [Back to Index]({{< relref "/" >}})

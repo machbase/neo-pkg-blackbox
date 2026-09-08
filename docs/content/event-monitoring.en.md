@@ -36,7 +36,7 @@ The Event screen lets you narrow the search range with the following filters.
 3. Click **Search** to load the results.
 4. Use **Reset** if you want to clear the filters.
 
-![Event monitoring screen](./images/blackbox-events-page.png)
+![Event monitoring screen]({{< asset "images/blackbox-events-page.png" >}})
 
 ## Items in the Result Table
 
@@ -71,6 +71,6 @@ There you can review:
 
 ## Navigation
 
-- [Previous: Using Dashboard Video Panels](./dashboard-video-panel.en.md)
-- [Back to Index](./index.en.md)
-- [Next: Troubleshooting](./troubleshooting.en.md)
+- [Previous: Using Dashboard Video Panels]({{< relref "dashboard-video-panel" >}})
+- [Back to Index]({{< relref "/" >}})
+- [Next: Troubleshooting]({{< relref "troubleshooting" >}})

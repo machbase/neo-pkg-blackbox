@@ -24,7 +24,7 @@ The main fields in the new Camera screen are:
 
 If the `Table` list is empty, you can create a new table with the **New Table** button.
 
-![New camera screen](./images/blackbox-camera-new.png)
+![New camera screen]({{< asset "images/blackbox-camera-new.png" >}})
 
 ## Checking the RTSP Connection
 
@@ -94,7 +94,7 @@ When you open an existing camera, you can review the following information.
 
 A running camera shows the status switch as `Enabled`.
 
-![Camera detail screen](./images/blackbox-camera-detail.png)
+![Camera detail screen]({{< asset "images/blackbox-camera-detail.png" >}})
 
 ## Starting and Stopping a Camera
 
@@ -118,6 +118,6 @@ Deleting a camera cannot be undone. For a camera in operation, it is safer to di
 
 ## Navigation
 
-- [Previous: Settings and Server Registration](./settings-and-servers.en.md)
-- [Back to Index](./index.en.md)
-- [Next: Using Dashboard Video Panels](./dashboard-video-panel.en.md)
+- [Previous: Settings and Server Registration]({{< relref "settings-and-servers" >}})
+- [Back to Index]({{< relref "/" >}})
+- [Next: Using Dashboard Video Panels]({{< relref "dashboard-video-panel" >}})

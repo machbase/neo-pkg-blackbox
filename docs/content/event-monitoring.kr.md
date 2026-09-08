@@ -36,7 +36,7 @@ Event 화면에서는 다음 조건으로 조회 범위를 줄일 수 있습니�
 3. **Search**를 눌러 결과를 조회합니다.
 4. 필요하면 **Reset**으로 조건을 초기화합니다.
 
-![이벤트 조회 화면](./images/blackbox-events-page.png)
+![이벤트 조회 화면]({{< asset "images/blackbox-events-page.png" >}})
 
 ## 결과 테이블에서 보는 항목
 
@@ -71,6 +71,6 @@ Event 화면에서는 다음 조건으로 조회 범위를 줄일 수 있습니�
 
 ## 문서 이동
 
-- [이전: 대시보드 Video 패널 사용](./dashboard-video-panel.kr.md)
-- [목차로 돌아가기](./index.kr.md)
-- [다음: 문제 해결](./troubleshooting.kr.md)
+- [이전: 대시보드 Video 패널 사용]({{< relref "dashboard-video-panel" >}})
+- [목차로 돌아가기]({{< relref "/" >}})
+- [다음: 문제 해결]({{< relref "troubleshooting" >}})
