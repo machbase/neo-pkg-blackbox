@@ -3,9 +3,7 @@ title: Blackbox User Manual
 weight: 10
 ---
 
-# Blackbox User Manual
-
-[한국어]({{< relref "/" >}}) | **English**
+#
 
 This document explains how to install the **Machbase Neo Blackbox package**, register servers, manage cameras, configure data retention, and review events.
 
