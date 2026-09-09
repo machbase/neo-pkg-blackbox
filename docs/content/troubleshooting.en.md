@@ -3,7 +3,7 @@ title: Troubleshooting
 weight: 60
 ---
 
-# Troubleshooting
+#
 
 ## A Server Is Registered but Does Not Connect
 

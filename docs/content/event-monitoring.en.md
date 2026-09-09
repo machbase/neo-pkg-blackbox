@@ -3,7 +3,7 @@ title: Event Monitoring
 weight: 50
 ---
 
-# Event Monitoring
+#
 
 In the Event screen of the Blackbox package, you can review detection results and rule evaluation results by time range.
 

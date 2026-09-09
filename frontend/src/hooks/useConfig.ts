@@ -83,7 +83,10 @@ export function useConfig() {
     try {
       const payload = toPostPayload(draft, shadow);
       const response = await postConfig(payload);
-      notify(response.reason || 'Settings saved successfully.', 'success');
+      const message = response.restartRequired
+        ? `${response.reason || 'Settings saved successfully.'} Restart the Blackbox service to apply Machbase connection changes.`
+        : (response.reason || 'Settings saved successfully.');
+      notify(message, 'success');
     } catch (error) {
       notify(`Failed to save settings: ${errorMessage(error, 'unknown error')}`, 'error');
     } finally {

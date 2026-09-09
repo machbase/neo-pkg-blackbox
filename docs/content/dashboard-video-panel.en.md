@@ -3,7 +3,7 @@ title: Using Dashboard Video Panels
 weight: 40
 ---
 
-# Using Dashboard Video Panels
+#
 
 After `neo-pkg-blackbox` is installed, you can select `Type = Video` when creating a panel in a Neo Web dashboard.
 

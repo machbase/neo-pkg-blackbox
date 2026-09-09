@@ -3,7 +3,7 @@ title: Settings와 서버 등록
 weight: 20
 ---
 
-# Settings와 서버 등록
+#
 
 Blackbox 패키지는 먼저 **공통 설정(Settings)** 을 확인한 뒤, 실제로 연결할 **Blackbox Server**를 등록하는 순서로 사용하는 것이 좋습니다.
 
@@ -35,12 +35,15 @@ General 탭에서는 패키지 전체가 공통으로 사용하는 연결 정보
 - `Data Directory`
   - 영상 또는 관련 데이터가 저장되는 경로입니다.
 - `Machbase`
-  - Machbase Neo와 통신할 Host, Port, Timeout Seconds를 설정합니다.
+  - Machbase Neo와 통신할 Host, Port, Database, Timeout Seconds를 설정합니다.
+  - **Load Databases**로 사용 가능한 Database를 선택하거나 이름을 직접 입력할 수 있습니다.
   - 필요하면 `Use Token`을 켜서 토큰 기반 인증을 사용할 수 있습니다.
 - `MediaMTX`
   - MediaMTX의 Host, Port, Binary 경로를 설정합니다.
 - `FFmpeg / FFprobe Binary`
   - FFmpeg와 FFprobe 실행 파일 경로를 지정합니다.
+
+Blackbox는 Database에 데이터를 기록하므로 `READ_WRITE` Database만 저장할 수 있습니다. 설정 저장 시 실제 사용 권한을 확인하며, Machbase 연결 설정이 변경되면 Blackbox 서비스를 재시작해야 새 연결이 적용됩니다.
 
 일반 사용자는 보통 설치 후 기본값을 유지하고, 실제 운영 환경에 맞춰 주소와 경로만 점검하면 충분합니다.
 

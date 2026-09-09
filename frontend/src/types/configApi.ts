@@ -71,3 +71,17 @@ export interface ApiConfigData {
 }
 
 export type ApiConfigPostBody = ApiConfigData;
+
+export interface DatabaseInfo {
+  name: string;
+  kind: string;
+  accessMode: string;
+  canUse: boolean;
+  state: string;
+  isDefault: boolean;
+  writable: boolean;
+}
+
+export interface DatabaseListData {
+  databases: DatabaseInfo[];
+}

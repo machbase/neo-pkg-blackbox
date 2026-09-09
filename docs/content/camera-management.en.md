@@ -3,7 +3,7 @@ title: Camera Management
 weight: 30
 ---
 
-# Camera Management
+#
 
 After registering a Blackbox Server, you can add and operate cameras under each server.
 

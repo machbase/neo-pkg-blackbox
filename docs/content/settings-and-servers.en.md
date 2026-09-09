@@ -3,7 +3,7 @@ title: Settings and Server Registration
 weight: 20
 ---
 
-# Settings and Server Registration
+#
 
 For the Blackbox package, it is best to review the common **Settings** first and then register the actual **Blackbox Server** instances to connect to.
 
@@ -35,12 +35,15 @@ Main items:
 - `Data Directory`
   - The path where video or related data is stored.
 - `Machbase`
-  - Sets the Host, Port, and Timeout Seconds used to communicate with Machbase Neo.
+  - Sets the Host, Port, Database, and Timeout Seconds used to communicate with Machbase Neo.
+  - Use **Load Databases** to select an available database, or type its name directly.
   - If needed, enable `Use Token` to use token-based authentication.
 - `MediaMTX`
   - Sets the Host, Port, and Binary path for MediaMTX.
 - `FFmpeg / FFprobe Binary`
   - Sets the executable paths for FFmpeg and FFprobe.
+
+Blackbox writes data to the database, so only a `READ_WRITE` database can be saved. Saving validates actual access, and changing the Machbase connection requires a Blackbox service restart before the new connection is used.
 
 For most users, the default values are fine after installation. In most cases, you only need to review the address and paths for your environment.
 

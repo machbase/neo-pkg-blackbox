@@ -1,10 +1,11 @@
-import type { ApiConfigData, ApiConfigPostBody } from "../types/configApi";
+import type { ApiConfigData, ApiConfigPostBody, DatabaseListData } from "../types/configApi";
 import { parseJsonResponse } from "./apiClient";
 import { getBboxInfo } from "./infoApi";
 
 type ApiResult = {
     success: boolean;
     reason: string;
+    restartRequired: boolean;
 };
 
 let bboxBaseUrlPromise: Promise<string> | null = null;
@@ -36,9 +37,21 @@ export async function postConfig(payload: ApiConfigPostBody): Promise<ApiResult>
         body: JSON.stringify(payload),
     });
 
-    const envelope = await parseJsonResponse<unknown>(response);
+    const envelope = await parseJsonResponse<{ restart_required?: boolean }>(response);
     return {
         success: envelope.success,
         reason: envelope.reason || "",
+        restartRequired: envelope.data?.restart_required === true,
     };
+}
+
+export async function listDatabases(machbase: ApiConfigData['machbase']): Promise<DatabaseListData> {
+    const base = await resolveBboxBaseUrl();
+    const response = await fetch(`${base}/api/databases`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(machbase),
+    });
+    const envelope = await parseJsonResponse<DatabaseListData>(response);
+    return envelope.data;
 }

@@ -3,7 +3,7 @@ title: 대시보드 Video 패널 사용
 weight: 40
 ---
 
-# 대시보드 Video 패널 사용
+#
 
 `neo-pkg-blackbox`가 설치되면 Neo Web 대시보드에서 패널 생성 시 `Type = Video`를 선택할 수 있습니다.
 
