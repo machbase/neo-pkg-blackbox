@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { GeneralSettings } from '../types/settings';
 import Icon from '../components/common/Icon';
+import { listDatabases } from '../services/configApi';
+import type { DatabaseInfo } from '../types/configApi';
+import { useApp } from '../context/AppContext';
 
 type GeneralTabProps = {
   settings: GeneralSettings;
@@ -38,8 +41,92 @@ function toNumber(raw: string, fallback: number): number {
   return Number.isNaN(parsed) ? fallback : parsed;
 }
 
+function databaseErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message.trim() : '';
+  const lower = message.toLowerCase();
+  if (!message
+    || lower.includes('loading private key from virtual filesystem is not supported yet')
+    || lower.includes('failed to fetch')
+    || lower.includes('invalid api response')) {
+    return '';
+  }
+  return message;
+}
+
+function resolveDatabaseSelection(current: string, databases: DatabaseInfo[]): string {
+  const writable = databases.filter((database) => database.writable);
+  const currentName = String(current || '').trim().toUpperCase();
+  const currentDatabase = writable.find((database) => database.name === currentName);
+  if (currentDatabase) return currentDatabase.name;
+  const defaultDatabase = writable.find((database) => database.name === 'MACHBASEDB');
+  if (defaultDatabase) return defaultDatabase.name;
+  return writable[0]?.name || '';
+}
+
 export function GeneralTab({ settings, onChange }: GeneralTabProps) {
+  const { notify } = useApp();
   const [showToken, setShowToken] = useState(false);
+  const [databases, setDatabases] = useState<DatabaseInfo[]>([]);
+  const [loadingDatabases, setLoadingDatabases] = useState(false);
+  const [databaseOpen, setDatabaseOpen] = useState(false);
+  const databasePickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (databasePickerRef.current && !databasePickerRef.current.contains(event.target as Node)) {
+        setDatabaseOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, []);
+
+  const loadDatabaseList = async () => {
+    setLoadingDatabases(true);
+    try {
+      const data = await listDatabases({
+        scheme: 'http',
+        host: settings.machbase.host,
+        port: settings.machbase.port,
+        database: settings.machbase.database || 'MACHBASEDB',
+        timeout_seconds: settings.machbase.timeoutSeconds,
+        api_token: settings.machbase.useToken ? settings.machbase.apiToken : '',
+      });
+      const nextDatabases = Array.isArray(data?.databases) ? data.databases : [];
+      setDatabases(nextDatabases);
+      onChange({
+        ...settings,
+        machbase: {
+          ...settings.machbase,
+          database: resolveDatabaseSelection(settings.machbase.database, nextDatabases),
+        },
+      });
+    } catch (error) {
+      setDatabases([]);
+      setDatabaseOpen(false);
+      const message = databaseErrorMessage(error);
+      if (message) notify(message, 'error');
+    } finally {
+      setLoadingDatabases(false);
+    }
+  };
+
+  const toggleDatabaseList = () => {
+    if (databaseOpen) {
+      setDatabaseOpen(false);
+      return;
+    }
+    setDatabaseOpen(true);
+    loadDatabaseList();
+  };
+
+  const handleDatabaseKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape' && databaseOpen) {
+      event.preventDefault();
+      event.stopPropagation();
+      setDatabaseOpen(false);
+    }
+  };
 
   return (
     <section className="flex flex-col gap-6">
@@ -105,13 +192,80 @@ export function GeneralTab({ settings, onChange }: GeneralTabProps) {
             onChange={(value) =>
               onChange({ ...settings, machbase: { ...settings.machbase, port: toNumber(value, settings.machbase.port) } })}
           />
-          <Field
-            id="machbase-database"
-            label="Database"
-            value={settings.machbase.database}
-            onChange={(value) =>
-              onChange({ ...settings, machbase: { ...settings.machbase, database: value } })}
-          />
+          <div className="flex flex-col gap-2 mt-3">
+            <label htmlFor="machbase-database" className="form-label">Database</label>
+            <div ref={databasePickerRef} className={`database-picker ${databaseOpen ? 'database-picker--open' : ''}`}>
+              <Icon name="database" className="database-picker__database-icon" />
+              <input
+                id="machbase-database"
+                name="machbase-database"
+                type="text"
+                value={settings.machbase.database}
+                onChange={(event) => onChange({
+                  ...settings,
+                  machbase: { ...settings.machbase, database: event.target.value },
+                })}
+                onKeyDown={handleDatabaseKeyDown}
+                role="combobox"
+                aria-autocomplete="none"
+                aria-expanded={databaseOpen}
+                aria-controls="blackbox-database-list"
+                className="w-full database-picker__input"
+              />
+              <button
+                type="button"
+                className="database-picker__trigger"
+                onClick={toggleDatabaseList}
+                disabled={loadingDatabases}
+                aria-label="Show available databases"
+                aria-expanded={databaseOpen}
+              >
+                <Icon name={loadingDatabases ? 'progress_activity' : 'expand_more'} className={`database-picker__trigger-icon ${loadingDatabases ? 'animate-spin' : ''}`} />
+              </button>
+              {databaseOpen && (
+                <div
+                  id="blackbox-database-list"
+                  role="listbox"
+                  className="database-picker__menu"
+                >
+                  {loadingDatabases && (
+                    <div className="database-picker__message">Loading databases...</div>
+                  )}
+                  {!loadingDatabases && databases.length === 0 && (
+                    <div className="database-picker__message">No available databases</div>
+                  )}
+                  {!loadingDatabases && databases.map((database) => {
+                    const selected = database.name === settings.machbase.database;
+                    return (
+                      <button
+                        key={database.name}
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        disabled={!database.writable}
+                        className="database-picker__option"
+                        onClick={() => {
+                          onChange({
+                            ...settings,
+                            machbase: { ...settings.machbase, database: database.name },
+                          });
+                          setDatabaseOpen(false);
+                        }}
+                      >
+                        <span className="flex items-center gap-2 min-w-0">
+                          <Icon name={selected ? 'check' : 'database'} className={selected ? 'text-primary' : 'text-on-surface-tertiary'} />
+                          <span className="truncate">{database.name}</span>
+                          {database.isDefault && <span className="text-xs text-on-surface-tertiary">default</span>}
+                        </span>
+                        <span className="text-xs text-on-surface-secondary shrink-0">{database.accessMode}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-on-surface-secondary">Only READ_WRITE databases can be selected and saved.</p>
+          </div>
           <Field
             id="machbase-timeout"
             label="Timeout Seconds"

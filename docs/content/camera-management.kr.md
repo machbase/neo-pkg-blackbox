@@ -3,7 +3,7 @@ title: 카메라 관리
 weight: 30
 ---
 
-# 카메라 관리
+#
 
 Blackbox Server를 등록한 뒤에는 각 서버 아래에 Camera를 추가하고 운영합니다.
 
