@@ -3,9 +3,7 @@ title: Blackbox 사용자 매뉴얼
 weight: 10
 ---
 
-# Blackbox 사용자 매뉴얼
-
-**한국어** | [English]({{< relref "/" >}})
+#
 
 이 문서는 **Machbase Neo Blackbox 패키지**의 설치, 서버 등록, 카메라 관리, 데이터 보존 설정, 이벤트 조회 방법을 설명합니다.
 
