@@ -23,16 +23,22 @@ var relFromWork = BBOX_DIR.replace(/^\/work\//, '');
 var hostBboxDir = hostPath.join(hostWorkDir, relFromWork);
 var executable = hostPath.join(hostBboxDir, 'bin', BIN_NAME);
 var configFile = hostPath.join(hostBboxDir, 'config', 'config.yaml');
+var parentPid = process.pid;
+
+if (!(parentPid > 0)) {
+  throw new Error('invalid JSH process PID: ' + parentPid);
+}
 
 console.println('launching:', executable);
 console.println('config:', configFile);
 console.println('cwd:', hostBboxDir);
+console.println('parent pid:', parentPid);
 
 var exitCode;
 if (IS_WIN) {
-  // launcher 자체가 죽으면 자식 트리 (neo-blackbox + mediamtx + ffmpeg + ai-manager + watcher) 도 같이 죽도록
-  // Win32 JobObject 로 묶는다. KILL_ON_JOB_CLOSE 설정 시 PowerShell 프로세스가 어떤 식으로 죽든 (graceful 이든
-  // service.stop 의 TerminateProcess 든) 커널이 job 핸들 정리하면서 job 의 모든 프로세스를 함께 종료한다.
+  // PowerShell 과 자식 트리 (neo-blackbox + mediamtx + ffmpeg + ai-manager + watcher) 를 Win32 JobObject 로
+  // 묶는다. neo-blackbox 자체의 parent-pid 감시가 JSH 종료를 정상 종료로 연결하고, JobObject 는 PowerShell 이
+  // 종료되거나 job 핸들이 닫히는 경로에서 남은 자식 트리를 정리하는 별도 보호장치다.
   // Windows 8+ 부터 자식 프로세스는 부모의 job 을 자동으로 상속받으므로, neo-blackbox 가 자손을 spawn 해도
   // 모두 같은 job 에 들어간다. 안 묶으면: TerminateProcess 시 자손이 stdout/stderr 파이프 핸들 들고 살아남아
   // JSH controller 의 cmd.Wait() 가 EOF 못 받고 영원히 블락 → JSH 먹통.
@@ -107,13 +113,13 @@ if (IS_WIN) {
     "}",
     "",
     "Set-Location -LiteralPath \"" + hostBboxDir + "\"",
-    "& \"" + executable + "\" -config \"" + configFile + "\" -web",
+    "& \"" + executable + "\" -config \"" + configFile + "\" -web -parent-pid " + parentPid,
     "exit $LASTEXITCODE",
   ].join('\r\n') + '\r\n';
   fs.writeFileSync(ps1Virtual, ps1Content);
   exitCode = process.exec('@powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1Host);
 } else {
-  var script = 'cd "' + hostBboxDir + '" && exec "' + executable + '" -config "' + configFile + '" -web';
+  var script = 'cd "' + hostBboxDir + '" && exec "' + executable + '" -config "' + configFile + '" -web -parent-pid ' + parentPid;
   exitCode = process.exec('@/bin/sh', '-c', script);
 }
 process.exit(exitCode);
