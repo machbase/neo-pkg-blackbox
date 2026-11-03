@@ -12,6 +12,8 @@ var BBOX_DIR = path.join(CGI_BIN, 'bbox');
 var LAUNCHER = path.join(CGI_BIN, 'blackbox-launcher.js');
 var SERVICE_NAME = 'neo-pkg-blackbox';
 var REPO = 'machbase/neo-pkg-bbox';
+// Pin the native release: newer bbox versions can require a different database schema.
+var BBOX_VERSION = 'v0.3.3';
 var IS_WIN = os.platform() === 'windows';
 var HOST_PATH = IS_WIN ? path.win32 : path;
 var BIN_NAME = IS_WIN ? 'neo-blackbox.exe' : 'neo-blackbox';
@@ -236,8 +238,7 @@ function replaceInstallation(stageDir, destDir) {
 
 var platform = detectPlatform();
 var assetName = 'neo-blackbox-' + platform + ARCHIVE_EXT;
-// GitHub /releases/latest/download/ 는 최신 릴리스 asset으로 자동 리다이렉트 (API rate limit 없음)
-var url = 'https://github.com/' + REPO + '/releases/latest/download/' + assetName;
+var url = 'https://github.com/' + REPO + '/releases/download/' + BBOX_VERSION + '/' + assetName;
 
 console.println('platform:', platform);
 console.println('downloading:', url);

@@ -2,6 +2,18 @@
 
 A video monitoring package for Machbase Neo that combines server setup, camera management, detection settings, and event review in a single web UI.
 
+## Version Compatibility
+
+| Package version | Machbase Neo | Native bbox release |
+| --- | --- | --- |
+| 1.0.9 | 8.5.x | v0.2.5 |
+| 1.0.11 | 8.7.x | v0.3.3 |
+
+The installer downloads the pinned bbox release, never `latest`. If that release
+cannot be downloaded, installation fails without substituting another version.
+Use one of the package versions listed above for new installations.
+Installation requires `curl` and `tar` on Linux/macOS, or PowerShell on Windows.
+
 ## Overview
 
 neo-pkg-blackbox helps you connect video sources, manage cameras, and review detection-based events inside Machbase Neo.
