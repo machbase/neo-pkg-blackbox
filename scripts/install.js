@@ -2,11 +2,8 @@
 
 var path = require('path');
 var process = require('process');
-var http = require('http');
 var fs = require('fs');
 var os = require('os');
-var tar = require('archive/tar');
-var zip = require('archive/zip');
 
 var ROOT = path.resolve(path.dirname(process.argv[1]));   // /work/.../scripts
 var PKG_DIR = path.dirname(ROOT);                          // /work/.../neo-pkg-blackbox
@@ -15,7 +12,10 @@ var BBOX_DIR = path.join(CGI_BIN, 'bbox');
 var LAUNCHER = path.join(CGI_BIN, 'blackbox-launcher.js');
 var SERVICE_NAME = 'neo-pkg-blackbox';
 var REPO = 'machbase/neo-pkg-bbox';
+// Keep this package on the native release compatible with Machbase Neo 8.5.x.
+var BBOX_VERSION = 'v0.2.5';
 var IS_WIN = os.platform() === 'windows';
+var HOST_PATH = IS_WIN ? path.win32 : path;
 var BIN_NAME = IS_WIN ? 'neo-blackbox.exe' : 'neo-blackbox';
 var ARCHIVE_EXT = IS_WIN ? '.zip' : '.tar.gz';
 
@@ -83,75 +83,82 @@ function preemptiveKill() {
   }
 }
 
-function download(url, destPath, callback) {
-  var MAX_REDIRECTS = 10;
-  var headers = { 'User-Agent': 'neo-pkg-blackbox' };
-
-  function fetch(fetchUrl, remaining) {
-    http.get(fetchUrl, { headers: headers }, function(res) {
-      if (res.statusCode >= 300 && res.statusCode < 400) {
-        var location = res.headers && res.headers.location;
-        if (!location) {
-          callback(new Error('redirect ' + res.statusCode + ' without location'));
-          return;
-        }
-        if (remaining <= 0) {
-          callback(new Error('too many redirects'));
-          return;
-        }
-        fetch(location, remaining - 1);
-        return;
-      }
-      if (!res.ok) {
-        callback(new Error('HTTP ' + res.statusCode));
-        return;
-      }
-      var buffer = res.readBodyBuffer();
-      if (!buffer || buffer.byteLength === 0) {
-        callback(new Error('empty download'));
-        return;
-      }
-      fs.writeFileSync(destPath, buffer);
-      callback(null);
-    });
+function hostPath(virtualPath) {
+  if (virtualPath !== '/work' && virtualPath.indexOf('/work/') !== 0) {
+    throw new Error('installer path must be under /work: ' + virtualPath);
   }
-
-  fetch(url, MAX_REDIRECTS);
+  var relative = virtualPath.substring('/work'.length).replace(/^\/+/, '');
+  var hostWorkDir = HOST_PATH.dirname(process.execPath);
+  if (!relative) return hostWorkDir;
+  return HOST_PATH.join.apply(HOST_PATH, [hostWorkDir].concat(relative.split('/')));
 }
 
-function writeEntries(entries, destDir) {
-  fs.mkdirSync(destDir, { recursive: true });
+function runExternal(command, args, label) {
+  var code = process.exec.apply(process, ['@' + command].concat(args));
+  if (code !== 0) {
+    throw new Error(label + ' failed (exit code ' + code + ')');
+  }
+}
 
-  for (var i = 0; i < entries.length; i++) {
-    var entry = entries[i];
-    var parts = entry.name.split('/');
-    if (parts.length > 1) {
-      parts.shift();
-    }
-    var relativePath = parts.join('/');
-    if (!relativePath) continue;
+function powerShellQuote(value) {
+  return "'" + String(value).replace(/'/g, "''") + "'";
+}
 
-    var fullPath = path.join(destDir, relativePath);
-    if (entry.isDir) {
-      fs.mkdirSync(fullPath, { recursive: true });
+// Keep the large native archive outside the JSH heap, as in the newer installer.
+function download(url, destPath, callback) {
+  try {
+    if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
+    var hostDestPath = hostPath(destPath);
+    if (IS_WIN) {
+      runExternal('powershell.exe', [
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command',
+        "$ErrorActionPreference = 'Stop'; Invoke-WebRequest -UseBasicParsing -Uri " +
+          powerShellQuote(url) + ' -OutFile ' + powerShellQuote(hostDestPath),
+      ], 'download');
     } else {
-      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-      fs.writeFileSync(fullPath, entry.data);
-      if (entry.mode) {
-        fs.chmod(fullPath, entry.mode & 0o777);
-      }
+      runExternal('curl', [
+        '--fail', '--location', '--silent', '--show-error',
+        '--retry', '3', '--connect-timeout', '30',
+        '--output', hostDestPath, url,
+      ], 'download');
     }
+    if (!fs.existsSync(destPath) || fs.statSync(destPath).size === 0) {
+      throw new Error('empty download');
+    }
+    callback(null);
+  } catch (err) {
+    if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
+    callback(err);
   }
 }
 
 function extract(archivePath, destDir) {
+  fs.mkdirSync(destDir, { recursive: true });
   if (IS_WIN) {
-    var buf = fs.readFileSync(archivePath, { encoding: 'buffer' });
-    writeEntries(zip.unzipSync(buf), destDir);
+    // Expand into a temporary directory so an existing installation can be overlaid.
+    var stageDir = destDir + '.extracting';
+    var ps = [
+      "$ErrorActionPreference = 'Stop'",
+      'try {',
+      'Expand-Archive -LiteralPath ' + powerShellQuote(hostPath(archivePath)) +
+        ' -DestinationPath ' + powerShellQuote(hostPath(stageDir)) + ' -Force',
+      '$roots = @(Get-ChildItem -LiteralPath ' + powerShellQuote(hostPath(stageDir)) + ')',
+      'if ($roots.Count -ne 1 -or -not $roots[0].PSIsContainer) { throw "invalid package root" }',
+      'Get-ChildItem -LiteralPath $roots[0].FullName | Copy-Item -Destination ' +
+        powerShellQuote(hostPath(destDir)) + ' -Recurse -Force',
+      '} finally {',
+      'if (Test-Path -LiteralPath ' + powerShellQuote(hostPath(stageDir)) +
+        ') { Remove-Item -LiteralPath ' + powerShellQuote(hostPath(stageDir)) + ' -Recurse -Force }',
+      '}',
+    ].join('; ');
+    runExternal('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps,
+    ], 'extract');
   } else {
-    var zlib = require('zlib');
-    var compressed = fs.readFileSync(archivePath, { encoding: 'buffer' });
-    writeEntries(tar.untarSync(zlib.gunzipSync(compressed)), destDir);
+    runExternal('tar', [
+      '-xzf', hostPath(archivePath), '-C', hostPath(destDir),
+      '--strip-components=1', '--no-same-owner',
+    ], 'extract');
   }
 }
 
@@ -159,8 +166,7 @@ function extract(archivePath, destDir) {
 
 var platform = detectPlatform();
 var assetName = 'neo-blackbox-' + platform + ARCHIVE_EXT;
-// GitHub /releases/latest/download/ 는 최신 릴리스 asset으로 자동 리다이렉트 (API rate limit 없음)
-var url = 'https://github.com/' + REPO + '/releases/latest/download/' + assetName;
+var url = 'https://github.com/' + REPO + '/releases/download/' + BBOX_VERSION + '/' + assetName;
 
 console.println('platform:', platform);
 console.println('downloading:', url);
